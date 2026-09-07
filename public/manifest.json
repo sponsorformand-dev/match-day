@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "AGF Håndbold – Matchday",
+  "short_name": "AGF Match",
+  "description": "Digital matchday platform for AGF Håndbold i Aarhus",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#081326",
+  "theme_color": "#081326",
+  "icons": [
+    {
+      "src": "/agf-logo.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

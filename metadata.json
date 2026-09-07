@@ -1,0 +1,6 @@
+{
+  "name": "AGF Håndbold – Matchday",
+  "description": "Digital matchday platform for AGF Håndbold i Aarhus med kampprogram, afstemning om Kampens Spiller, kioskpriser, pausetilbud, konkurrencer og live leaderboards.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

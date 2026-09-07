@@ -1,0 +1,106 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.admin == true ||
+        request.auth.token.email.matches('.*@agfhaandbold\\.dk')
+      );
+    }
+    
+    // Matchdays
+    match /matchdays/{matchdayId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Matches
+    match /matches/{matchId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Schedule items
+    match /schedule/{scheduleId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Kiosk products
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Coupons
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Coupon Redemptions
+    match /couponRedemptions/{redemptionId} {
+      allow read: if isAdmin() || (resource != null && resource.data.deviceId == request.query.deviceId);
+      allow create: if request.resource.data.deviceId is string && request.resource.data.couponId is string;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Competitions
+    match /competitions/{competitionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Scores
+    match /scores/{scoreId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Voting Sessions
+    match /votingSessions/{sessionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Players
+    match /players/{playerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Votes
+    match /votes/{voteId} {
+      allow read: if isAdmin();
+      allow create: if request.resource.data.sessionId is string &&
+                      request.resource.data.playerId is string &&
+                      request.resource.data.deviceId is string;
+      allow update, delete: if isAdmin();
+    }
+
+    // Partners
+    match /partners/{partnerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Announcements
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Settings
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,274 @@
+{
+  "entities": {
+    "matchday": {
+      "title": "Matchday",
+      "description": "An AGF Håndbold matchday event",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "location": { "type": "string" },
+        "active": { "type": "boolean" },
+        "featuredHero": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string" },
+            "title": { "type": "string" },
+            "subtitle": { "type": "string" },
+            "actionText": { "type": "string" },
+            "actionTarget": { "type": "string" },
+            "active": { "type": "boolean" }
+          }
+        },
+        "looadUrl": { "type": "string" },
+        "looadTitle": { "type": "string" },
+        "looadDescription": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "title", "date", "active"]
+    },
+    "match": {
+      "title": "Match",
+      "description": "A handball match taking place on the matchday",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "matchdayId": { "type": "string" },
+        "category": { "type": "string", "enum": ["DAMER", "HERRER", "UNGDOM"] },
+        "homeTeam": { "type": "string" },
+        "awayTeam": { "type": "string" },
+        "time": { "type": "string" },
+        "status": { "type": "string", "enum": ["upcoming", "live", "halftime", "completed"] },
+        "homeScore": { "type": "number" },
+        "awayScore": { "type": "number" },
+        "round": { "type": "string" }
+      },
+      "required": ["id", "category", "homeTeam", "awayTeam", "time"]
+    },
+    "scheduleItem": {
+      "title": "Schedule Item",
+      "description": "A programme timeline activity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "matchdayId": { "type": "string" },
+        "time": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "location": { "type": "string" },
+        "icon": { "type": "string" },
+        "status": { "type": "string", "enum": ["upcoming", "live", "completed"] },
+        "order": { "type": "number" }
+      },
+      "required": ["id", "time", "title", "status"]
+    },
+    "product": {
+      "title": "Product",
+      "description": "A kiosk item with price and availability",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "price": { "type": "number" },
+        "available": { "type": "boolean" },
+        "promotionalLabel": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["id", "name", "category", "price", "available"]
+    },
+    "coupon": {
+      "title": "Coupon",
+      "description": "Special matchday offer with countdown redemption",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "matchdayId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "originalPrice": { "type": "number" },
+        "offerPrice": { "type": "number" },
+        "active": { "type": "boolean" },
+        "activationDurationMinutes": { "type": "number" },
+        "maxRedemptions": { "type": "number" },
+        "sponsor": { "type": "string" }
+      },
+      "required": ["id", "title", "description", "offerPrice", "active"]
+    },
+    "couponRedemption": {
+      "title": "Coupon Redemption",
+      "description": "A recorded coupon activation and redemption by a device",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "couponId": { "type": "string" },
+        "deviceId": { "type": "string" },
+        "activatedAt": { "type": "string" },
+        "redeemedAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "redeemed", "expired"] }
+      },
+      "required": ["id", "couponId", "deviceId", "activatedAt", "status"]
+    },
+    "competition": {
+      "title": "Competition",
+      "description": "Physical arena game like Skudmåler or Crossbar Challenge",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "scoringUnit": { "type": "string" },
+        "higherScoreWins": { "type": "boolean" },
+        "active": { "type": "boolean" },
+        "maxLeaderboardEntries": { "type": "number" }
+      },
+      "required": ["id", "name", "scoringUnit", "higherScoreWins", "active"]
+    },
+    "score": {
+      "title": "Score",
+      "description": "A participant result in a competition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "competitionId": { "type": "string" },
+        "matchdayId": { "type": "string" },
+        "participantName": { "type": "string" },
+        "score": { "type": "number" },
+        "timestamp": { "type": "string" },
+        "isNewRecord": { "type": "boolean" }
+      },
+      "required": ["id", "competitionId", "participantName", "score"]
+    },
+    "votingSession": {
+      "title": "Voting Session",
+      "description": "Kampens Spiller voting session for Damer or Herrer",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "matchdayId": { "type": "string" },
+        "category": { "type": "string", "enum": ["DAMER", "HERRER"] },
+        "title": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "open", "closed"] },
+        "sponsor": { "type": "string" },
+        "sponsorLogo": { "type": "string" },
+        "winnerPlayerId": { "type": "string" },
+        "publicResultsEnabled": { "type": "boolean" }
+      },
+      "required": ["id", "category", "status"]
+    },
+    "player": {
+      "title": "Player",
+      "description": "A handball player eligible for Kampens Spiller voting",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sessionId": { "type": "string" },
+        "name": { "type": "string" },
+        "number": { "type": "number" },
+        "position": { "type": "string" },
+        "photoUrl": { "type": "string" }
+      },
+      "required": ["id", "name", "number"]
+    },
+    "vote": {
+      "title": "Vote",
+      "description": "An anonymous vote for a player",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sessionId": { "type": "string" },
+        "playerId": { "type": "string" },
+        "deviceId": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "sessionId", "playerId", "deviceId"]
+    },
+    "partner": {
+      "title": "Partner",
+      "description": "An AGF sponsor or partner",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "logo": { "type": "string" },
+        "websiteUrl": { "type": "string" },
+        "message": { "type": "string" },
+        "category": { "type": "string" },
+        "offer": { "type": "string" },
+        "active": { "type": "boolean" },
+        "attachedTo": { "type": "string" }
+      },
+      "required": ["id", "name", "active"]
+    },
+    "announcement": {
+      "title": "Announcement",
+      "description": "Matchday announcement broadcast to spectators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "matchdayId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "priority": { "type": "string", "enum": ["normal", "important", "urgent"] },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "title", "message", "priority", "active"]
+    }
+  },
+  "firestore": {
+    "/matchdays/{matchdayId}": {
+      "schema": "matchday",
+      "description": "Matchdays collection"
+    },
+    "/matches/{matchId}": {
+      "schema": "match",
+      "description": "Matches for matchdays"
+    },
+    "/schedule/{scheduleId}": {
+      "schema": "scheduleItem",
+      "description": "Timeline schedule items"
+    },
+    "/products/{productId}": {
+      "schema": "product",
+      "description": "Kiosk products and pricing"
+    },
+    "/coupons/{couponId}": {
+      "schema": "coupon",
+      "description": "Promotional coupons"
+    },
+    "/couponRedemptions/{redemptionId}": {
+      "schema": "couponRedemption",
+      "description": "Coupon activations and redemptions"
+    },
+    "/competitions/{competitionId}": {
+      "schema": "competition",
+      "description": "Arena physical competitions"
+    },
+    "/scores/{scoreId}": {
+      "schema": "score",
+      "description": "Competition scores and leaderboards"
+    },
+    "/votingSessions/{sessionId}": {
+      "schema": "votingSession",
+      "description": "Kampens Spiller voting sessions"
+    },
+    "/players/{playerId}": {
+      "schema": "player",
+      "description": "Players in voting sessions"
+    },
+    "/votes/{voteId}": {
+      "schema": "vote",
+      "description": "Spectator votes"
+    },
+    "/partners/{partnerId}": {
+      "schema": "partner",
+      "description": "Sponsors and partners"
+    },
+    "/announcements/{announcementId}": {
+      "schema": "announcement",
+      "description": "Matchday announcements"
+    }
+  }
+}
