@@ -1,4 +1,4 @@
-export type ActiveTab = 'hjem' | 'program' | 'stem' | 'kiosk' | 'mere' | 'tilbud' | 'konkurrencer' | 'tilmelding' | 'partnere' | 'admin' | 'del-matchday' | 'scanner';
+export type ActiveTab = 'hjem' | 'program' | 'stem' | 'kiosk' | 'mere' | 'tilbud' | 'konkurrencer' | 'tilmelding' | 'partnere' | 'del-matchday' | 'staff';
 
 export interface FeaturedHero {
   enabled: boolean;
@@ -39,6 +39,7 @@ export interface Match {
   homeScore?: number;
   awayScore?: number;
   partner?: string;
+  liveMatchUrl?: string;
 }
 
 export type ScheduleStatus = 'upcoming' | 'live' | 'completed';
@@ -171,15 +172,29 @@ export interface Vote {
   timestamp: string;
 }
 
+export type SponsorCategory =
+  | 'HOVEDSPONSOR'
+  | 'AGF PLAY'
+  | 'AGF MATCH'
+  | 'AGF FORDEL'
+  | 'ØVRIGE MATCHDAY-PARTNERE';
+
 export interface Partner {
   id: string;
-  name: string;
-  logo?: string;
+  name: string; // companyName
+  companyName?: string;
+  logo?: string; // logoUrl / logoAsset
+  logoUrl?: string;
   websiteUrl?: string;
+  category: SponsorCategory | string; // sponsorCategory
+  sponsorCategory?: SponsorCategory;
+  shortDescription?: string;
   message?: string;
-  category: string;
   offer?: string;
+  optionalMatchdayOffer?: string;
   active: boolean;
+  sortOrder?: number;
+  featured?: boolean;
   attachedTo?: string;
 }
 

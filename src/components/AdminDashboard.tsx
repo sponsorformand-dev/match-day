@@ -11,6 +11,7 @@ import {
   VotingSession,
   Player,
   Partner,
+  SponsorCategory,
   Announcement,
   FeaturedHero,
   StaffUser,
@@ -47,6 +48,10 @@ import {
   Key,
   ShieldCheck,
   Share2,
+  Zap,
+  ExternalLink,
+  Upload,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -95,11 +100,153 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
   const [canonicalUrlInput, setCanonicalUrlInput] = useState<string>(() => db.canonicalAppUrl || '');
   const [canonicalUrlSaved, setCanonicalUrlSaved] = useState<boolean>(false);
 
+  // Looad partnerlink state
+  const [looadUrlInput, setLooadUrlInput] = useState<string>(
+    () => db.matchdays.find(m => m.id === db.activeMatchdayId)?.looadUrl || 'https://looad.dk/pages/klub-agf-haandbold'
+  );
+  const [looadUrlSaved, setLooadUrlSaved] = useState<boolean>(false);
+
   // New staff user form state for Feature 25
   const [newStaffName, setNewStaffName] = useState<string>('');
   const [newStaffPin, setNewStaffPin] = useState<string>('');
   const [newStaffRole, setNewStaffRole] = useState<'STAFF' | 'ADMIN'>('STAFF');
   const [staffActionMsg, setStaffActionMsg] = useState<string | null>(null);
+
+  // Partner Administration State
+  const [editingPartner, setEditingPartner] = useState<Partner | null>(null);
+  const [isPartnerModalOpen, setIsPartnerModalOpen] = useState<boolean>(false);
+  const [partnerFilterCategory, setPartnerFilterCategory] = useState<string>('ALL');
+  const [partnerSaveMsg, setPartnerSaveMsg] = useState<string | null>(null);
+  const [partnerForm, setPartnerForm] = useState<{
+    id?: string;
+    name: string;
+    category: SponsorCategory;
+    logo: string;
+    websiteUrl: string;
+    shortDescription: string;
+    active: boolean;
+    sortOrder: number;
+    featured: boolean;
+    offer: string;
+  }>({
+    name: '',
+    category: 'AGF PLAY',
+    logo: '',
+    websiteUrl: '',
+    shortDescription: '',
+    active: true,
+    sortOrder: 1,
+    featured: false,
+    offer: '',
+  });
+
+  const PRESET_PARTNER_LOGOS = [
+    { label: 'Raundahl & Moesby', path: '/partners/raundahl-moesby.png' },
+    { label: 'Sport 24', path: '/partners/sport-24.png' },
+    { label: 'Jasa Company', path: '/partners/jasa-company.png' },
+    { label: 'Jørgen Kræmer Rasmussen', path: '/partners/jorgen-kraemer-rasmussen.png' },
+    { label: 'Djurslands Bank', path: '/partners/djurslands-bank.png' },
+    { label: 'Harald Nyborg', path: '/partners/harald-nyborg.png' },
+    { label: 'Scorjobbet.dk', path: '/partners/scorjobbet.png' },
+    { label: 'Kaufmann', path: '/partners/kaufmann.png' },
+    { label: 'V Steel A/S', path: '/partners/v-steel.png' },
+    { label: 'AK Smede', path: '/partners/ak-smede.png' },
+    { label: 'Dansk Psykologisk Forlag', path: '/partners/dansk-psykologisk-forlag.png' },
+    { label: 'Ringkjøbing Landbobank', path: '/partners/ringkjobing-landbobank.png' },
+    { label: 'Café Faust', path: '/partners/cafe-faust.png' },
+    { label: 'Formueforvalterne', path: '/partners/formueforvalterne.png' },
+    { label: 'LPH Byg', path: '/partners/lph-byg.png' },
+    { label: 'PH Trading', path: '/partners/ph-trading.png' },
+    { label: 'Looad (Energipartner)', path: '/partners/looad.png' },
+    { label: 'AGF Håndbold Logo', path: '/agf-logo.svg' },
+  ];
+
+  const handleOpenCreatePartner = () => {
+    setEditingPartner(null);
+    setPartnerForm({
+      name: '',
+      category: 'AGF PLAY',
+      logo: '',
+      websiteUrl: '',
+      shortDescription: '',
+      active: true,
+      sortOrder: (db.partners?.length || 0) + 1,
+      featured: false,
+      offer: '',
+    });
+    setPartnerSaveMsg(null);
+    setIsPartnerModalOpen(true);
+  };
+
+  const handleOpenEditPartner = (p: Partner) => {
+    setEditingPartner(p);
+    setPartnerForm({
+      id: p.id,
+      name: p.name || p.companyName || '',
+      category: ((p.category || p.sponsorCategory || 'AGF PLAY') as SponsorCategory),
+      logo: p.logo || p.logoUrl || '',
+      websiteUrl: p.websiteUrl || '',
+      shortDescription: p.shortDescription || p.message || '',
+      active: p.active !== false,
+      sortOrder: p.sortOrder ?? 1,
+      featured: Boolean(p.featured),
+      offer: p.offer || p.optionalMatchdayOffer || '',
+    });
+    setPartnerSaveMsg(null);
+    setIsPartnerModalOpen(true);
+  };
+
+  const handleSavePartnerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!partnerForm.name.trim()) {
+      setPartnerSaveMsg('Angiv venligst et virksomhedsnavn.');
+      return;
+    }
+
+    const partnerToSave: Partner = {
+      id: partnerForm.id || `part-${Date.now()}`,
+      name: partnerForm.name.trim(),
+      companyName: partnerForm.name.trim(),
+      category: partnerForm.category,
+      sponsorCategory: partnerForm.category,
+      logo: partnerForm.logo.trim() || '/agf-logo.svg',
+      logoUrl: partnerForm.logo.trim() || '/agf-logo.svg',
+      websiteUrl: partnerForm.websiteUrl.trim(),
+      shortDescription: partnerForm.shortDescription.trim(),
+      message: partnerForm.shortDescription.trim(),
+      active: partnerForm.active,
+      sortOrder: Number(partnerForm.sortOrder) || 1,
+      featured: Boolean(partnerForm.featured),
+      offer: partnerForm.offer.trim(),
+      optionalMatchdayOffer: partnerForm.offer.trim(),
+    };
+
+    await dataService.savePartner(partnerToSave);
+    setPartnerSaveMsg('Partner gemt!');
+    setTimeout(() => {
+      setIsPartnerModalOpen(false);
+      setPartnerSaveMsg(null);
+    }, 400);
+  };
+
+  const handleDeletePartnerClick = async (partnerId: string, name: string) => {
+    if (window.confirm(`Er du sikker på, at du vil slette partneren "${name}"?`)) {
+      await dataService.deletePartner(partnerId);
+    }
+  };
+
+  const handlePartnerFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setPartnerForm((prev) => ({ ...prev, logo: reader.result as string }));
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Handle Login
   const handleLogin = (e: React.FormEvent) => {
@@ -185,7 +332,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
     { id: 'kiosk' as AdminSection, label: 'Kiosk', icon: Beer },
     { id: 'kuponer' as AdminSection, label: 'Kuponer & Stats', icon: Tag },
     { id: 'konkurrencer' as AdminSection, label: 'Konkurrencer', icon: Trophy },
-    { id: 'tilmelding' as AdminSection, label: 'Tilmelding', icon: UserCheck },
+    { id: 'tilmelding' as AdminSection, label: 'Looad partnerlink', icon: Zap },
     { id: 'partnere' as AdminSection, label: 'Partnere', icon: HeartHandshake },
     { id: 'beskeder' as AdminSection, label: 'Beskeder', icon: Megaphone },
     { id: 'analytics' as AdminSection, label: 'Statistik', icon: BarChart3 },
@@ -425,6 +572,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
                 </button>
               </div>
             </div>
+
+            {/* Looad Partnerlink Settings */}
+            <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm">
+              <h3 className="font-bold text-base text-[#081326] mb-1 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-500 fill-current" />
+                <span>Looad partnerlink</span>
+              </h3>
+              <p className="text-xs text-gray-500 mb-3">
+                Link til Looad-partnersiden for AGF Håndbold supportere. Bruges i appen under "Mere" og på forsiden.
+              </p>
+
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={looadUrlInput}
+                  onChange={(e) => {
+                    setLooadUrlInput(e.target.value);
+                    setLooadUrlSaved(false);
+                  }}
+                  placeholder="https://looad.dk/pages/klub-agf-haandbold"
+                  className="flex-1 px-3 py-2 text-xs font-mono bg-gray-50 border border-gray-300 rounded-xl focus:bg-white focus:border-amber-500 outline-hidden font-bold"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (activeMatchday) {
+                      await dataService.saveMatchday({
+                        ...activeMatchday,
+                        looadUrl: looadUrlInput.trim() || 'https://looad.dk/pages/klub-agf-haandbold',
+                        looadTitle: 'STØT AGF HÅNDBOLD MED LOOAD',
+                        looadDescription: 'Skift elselskab til Looad og støt samtidig AGF Håndbold.',
+                      });
+                      setLooadUrlSaved(true);
+                      setTimeout(() => setLooadUrlSaved(false), 3000);
+                    }
+                  }}
+                  className={`px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
+                    looadUrlSaved
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-[#081326] hover:bg-black text-white'
+                  }`}
+                >
+                  {looadUrlSaved ? 'Gemt ✓' : 'Gem Link'}
+                </button>
+              </div>
+              <div className="mt-2 text-[11px] text-gray-400">
+                Standard: <code className="font-mono text-[10px] text-gray-600">https://looad.dk/pages/klub-agf-haandbold</code>
+              </div>
+            </div>
           </div>
         )}
 
@@ -530,6 +726,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
                       </button>
                     ))}
                   </div>
+                </div>
+
+                {/* Live Match URL (Flashscore, tophaandbold.dk, etc.) */}
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1 flex items-center justify-between">
+                    <span>Live match URL (ekstern livescore):</span>
+                    <span className="text-[10px] text-gray-400 font-normal">Valgfri</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={match.liveMatchUrl || ''}
+                      onChange={(e) => dataService.saveMatch({ ...match, liveMatchUrl: e.target.value })}
+                      placeholder="https://tophaandbold.dk/kampe"
+                      className="flex-1 px-3 py-1.5 text-xs font-mono bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:border-[#081326] outline-hidden font-medium"
+                    />
+                    {match.liveMatchUrl && (
+                      <a
+                        href={match.liveMatchUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs flex items-center gap-1"
+                        title="Test link"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Når denne URL er udfyldt, vises knappen <strong>"FØLG KAMPEN LIVE"</strong> på kampkortet for tilskuere.
+                  </p>
                 </div>
               </div>
             ))}
@@ -1260,95 +1487,609 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
           </div>
         )}
 
-        {/* ================= SECTION: TILMELDING (LOOAD) ================= */}
+        {/* ================= SECTION: LOOAD PARTNERLINK ================= */}
         {currentSection === 'tilmelding' && (
-          <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm space-y-3">
-            <h3 className="font-bold text-base text-[#081326] flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-blue-600" />
-              <span>Looad Tilmeldings-indstillinger</span>
-            </h3>
-            <p className="text-xs text-gray-500">
-              Indsæt eller opdatér Looad tilmeldings-linket for denne Matchday.
-            </p>
+          <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm space-y-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center">
+                <Zap className="w-5 h-5 text-amber-500 fill-current" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-base text-[#081326] uppercase tracking-wide">
+                  Looad partnerlink
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Konfigurer partnerlinket til Looad for denne Matchday. Skift elselskab til Looad og støt samtidig AGF Håndbold.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200/60 text-xs text-amber-900 flex items-start gap-2">
+              <Zap className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <span>
+                Standard destination er altid <strong>https://looad.dk/pages/klub-agf-haandbold</strong>. Når fans klikker på kortet eller knappen "STØT KLUBBEN", ledes de direkte hertil i et nyt vindue.
+              </span>
+            </div>
 
             <div>
               <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
-                Looad URL
+                Looad partnerlink (URL)
               </label>
               <input
                 type="url"
-                defaultValue={activeMatchday?.looadUrl || 'https://looad.dk/event/agf-matchday-2026'}
+                defaultValue={activeMatchday?.looadUrl || 'https://looad.dk/pages/klub-agf-haandbold'}
                 onBlur={(e) => {
                   if (activeMatchday) {
-                    dataService.updateLooadSettings(activeMatchday.id, e.target.value);
+                    const clean = e.target.value.trim() || 'https://looad.dk/pages/klub-agf-haandbold';
+                    dataService.updateLooadSettings(activeMatchday.id, clean);
                   }
                 }}
-                className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326] font-mono"
+                placeholder="https://looad.dk/pages/klub-agf-haandbold"
+                className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326] font-mono focus:bg-white focus:border-amber-500 outline-hidden font-bold"
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
-                Titel på tilmeldingskort
+                Overskrift på Looad-kort
               </label>
               <input
                 type="text"
-                defaultValue={activeMatchday?.looadTitle || 'Tilmeld dig aktiviteten'}
+                defaultValue={activeMatchday?.looadTitle || 'STØT AGF HÅNDBOLD MED LOOAD'}
                 onBlur={(e) => {
                   if (activeMatchday) {
-                    dataService.updateLooadSettings(activeMatchday.id, activeMatchday.looadUrl, e.target.value);
+                    dataService.updateLooadSettings(activeMatchday.id, activeMatchday.looadUrl, e.target.value.trim() || 'STØT AGF HÅNDBOLD MED LOOAD');
+                  }
+                }}
+                className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326] font-bold"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                Beskrivelse
+              </label>
+              <textarea
+                rows={2}
+                defaultValue={activeMatchday?.looadDescription || 'Skift elselskab til Looad og støt samtidig AGF Håndbold.'}
+                onBlur={(e) => {
+                  if (activeMatchday) {
+                    dataService.updateLooadSettings(activeMatchday.id, activeMatchday.looadUrl, undefined, e.target.value.trim() || 'Skift elselskab til Looad og støt samtidig AGF Håndbold.');
                   }
                 }}
                 className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326]"
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
-                Kort beskrivelse
-              </label>
-              <textarea
-                rows={2}
-                defaultValue={activeMatchday?.looadDescription || 'Tilmeld dig her og vær med på dagen.'}
-                onBlur={(e) => {
-                  if (activeMatchday) {
-                    dataService.updateLooadSettings(activeMatchday.id, activeMatchday.looadUrl, undefined, e.target.value);
-                  }
-                }}
-                className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326]"
-              />
+            <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+              <span>Standard: <code className="font-mono text-gray-700">https://looad.dk/pages/klub-agf-haandbold</code></span>
+              <a
+                href={activeMatchday?.looadUrl || 'https://looad.dk/pages/klub-agf-haandbold'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-bold text-amber-700 hover:underline flex items-center gap-1"
+              >
+                <span>Test link</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
             </div>
           </div>
         )}
 
         {/* ================= SECTION: PARTNERE ================= */}
         {currentSection === 'partnere' && (
-          <div className="space-y-3">
-            <h3 className="font-bold text-sm text-[#081326] px-1 uppercase tracking-wider">
-              Dagens Partnere & Sponsorer
-            </h3>
-            <div className="space-y-2">
-              {db.partners.map((partner) => (
-                <div key={partner.id} className="bg-white rounded-2xl p-3.5 border border-gray-200 flex items-center justify-between gap-3">
-                  <div>
-                    <h4 className="font-bold text-sm text-[#081326]">{partner.name}</h4>
-                    <span className="text-xs text-gray-400">{partner.category}</span>
-                    {partner.offer && (
-                      <p className="text-[11px] text-[#C8102E] font-medium">{partner.offer}</p>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={() => dataService.savePartner({ ...partner, active: !partner.active })}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold uppercase ${
-                      partner.active ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-600'
-                    }`}
-                  >
-                    {partner.active ? 'Aktiv' : 'Skjult'}
-                  </button>
+          <div className="space-y-4">
+            {/* Header & Create Button */}
+            <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <HeartHandshake className="w-4 h-4 text-emerald-600" />
+                  <h3 className="font-extrabold text-base text-[#081326] uppercase tracking-wide">
+                    Partnere & Sponsorstruktur
+                  </h3>
                 </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Administrer AGF Håndbold sponsorer, kategorier, logoer og kampdagsplaceringer.
+                </p>
+              </div>
+
+              <button
+                id="admin-create-partner-btn"
+                onClick={handleOpenCreatePartner}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#081326] text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-black transition-colors flex-shrink-0 cursor-pointer shadow-xs"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Opret Partner</span>
+              </button>
+            </div>
+
+            {/* Category Filter Tabs */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+              {[
+                { id: 'ALL', label: `Alle (${db.partners?.length || 0})` },
+                { id: 'HOVEDSPONSOR', label: 'Hovedsponsor' },
+                { id: 'AGF PLAY', label: 'AGF Play' },
+                { id: 'AGF MATCH', label: 'AGF Match' },
+                { id: 'AGF FORDEL', label: 'AGF Fordel' },
+                { id: 'ØVRIGE MATCHDAY-PARTNERE', label: 'Øvrige' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setPartnerFilterCategory(tab.id)}
+                  className={`px-3 py-1.5 rounded-lg font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                    partnerFilterCategory === tab.id
+                      ? 'bg-[#081326] text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
               ))}
             </div>
+
+            {/* Partner List */}
+            <div className="space-y-3">
+              {(['HOVEDSPONSOR', 'AGF PLAY', 'AGF MATCH', 'AGF FORDEL', 'ØVRIGE MATCHDAY-PARTNERE'] as SponsorCategory[])
+                .filter((cat) => partnerFilterCategory === 'ALL' || partnerFilterCategory === cat)
+                .map((cat) => {
+                  const partnersInCat = (db.partners || [])
+                    .filter((p) => {
+                      const c = (p.category || p.sponsorCategory || '').toUpperCase().trim();
+                      if (cat === 'HOVEDSPONSOR') return c === 'HOVEDSPONSOR' || c.includes('HOVED');
+                      if (cat === 'AGF PLAY') return c === 'AGF PLAY' || c === 'PLAY';
+                      if (cat === 'AGF MATCH') return c === 'AGF MATCH' || c === 'MATCH';
+                      if (cat === 'AGF FORDEL') return c === 'AGF FORDEL' || c === 'FORDEL';
+                      if (cat === 'ØVRIGE MATCHDAY-PARTNERE') {
+                        return (
+                          c === 'ØVRIGE MATCHDAY-PARTNERE' ||
+                          c === 'OVRIGE MATCHDAY-PARTNERE' ||
+                          c.includes('ØVRIG') ||
+                          c.includes('ENERGIPARTNER') ||
+                          c.includes('MATCHDAY')
+                        );
+                      }
+                      return false;
+                    })
+                    .sort((a, b) => (a.sortOrder ?? 99) - (b.sortOrder ?? 99));
+
+                  if (partnersInCat.length === 0 && partnerFilterCategory !== 'ALL') {
+                    return (
+                      <div key={cat} className="bg-white rounded-2xl p-6 text-center text-xs text-gray-500 border border-gray-200">
+                        Ingen partnere i kategorien {cat}.
+                      </div>
+                    );
+                  }
+
+                  if (partnersInCat.length === 0) return null;
+
+                  return (
+                    <div key={cat} className="space-y-2">
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[11px] font-black uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+                          <span
+                            className={`w-2 h-2 rounded-full ${
+                              cat === 'HOVEDSPONSOR'
+                                ? 'bg-amber-500'
+                                : cat === 'AGF PLAY'
+                                ? 'bg-blue-600'
+                                : cat === 'AGF MATCH'
+                                ? 'bg-slate-600'
+                                : cat === 'AGF FORDEL'
+                                ? 'bg-gray-500'
+                                : 'bg-emerald-600'
+                            }`}
+                          />
+                          <span>{cat}</span>
+                        </span>
+                        <span className="text-[10px] text-gray-400 font-semibold">
+                          {partnersInCat.length} {partnersInCat.length === 1 ? 'partner' : 'partnere'}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {partnersInCat.map((partner) => (
+                          <div
+                            key={partner.id}
+                            className="bg-white rounded-2xl p-3.5 border border-gray-200/90 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:border-gray-300 transition-colors"
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              {/* Logo Box */}
+                              <div className="w-12 h-12 rounded-xl bg-gray-50 border border-gray-200 p-1 flex items-center justify-center flex-shrink-0">
+                                <img
+                                  src={partner.logo || partner.logoUrl || '/agf-logo.svg'}
+                                  alt={partner.name}
+                                  className="max-h-9 w-auto max-w-full object-contain"
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = '/agf-logo.svg';
+                                  }}
+                                />
+                              </div>
+
+                              {/* Details */}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h4 className="font-extrabold text-sm text-[#081326] truncate">
+                                    {partner.name}
+                                  </h4>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">
+                                    #{partner.sortOrder ?? 1}
+                                  </span>
+                                  {partner.featured && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
+                                      <Sparkles className="w-2.5 h-2.5 text-amber-600" />
+                                      <span>Fremhævet forside</span>
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-500 mt-0.5">
+                                  <span>{partner.category}</span>
+                                  {partner.websiteUrl ? (
+                                    <a
+                                      href={partner.websiteUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-blue-600 hover:underline text-[11px]"
+                                    >
+                                      <ExternalLink className="w-2.5 h-2.5" />
+                                      <span>Link</span>
+                                    </a>
+                                  ) : (
+                                    <span className="text-[10px] text-gray-400 italic">Intet weblink</span>
+                                  )}
+                                </div>
+
+                                {partner.offer && (
+                                  <div className="flex items-center gap-1 text-[10px] text-[#C8102E] font-medium mt-1">
+                                    <Tag className="w-2.5 h-2.5 flex-shrink-0" />
+                                    <span>{partner.offer}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex items-center gap-2 w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100">
+                              {/* Toggle Featured */}
+                              <button
+                                type="button"
+                                title={partner.featured ? 'Fjern fra forsiden' : 'Fremhæv på forsiden'}
+                                onClick={() =>
+                                  dataService.savePartner({
+                                    ...partner,
+                                    featured: !partner.featured,
+                                  })
+                                }
+                                className={`p-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                                  partner.featured
+                                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                    : 'bg-gray-100 text-gray-400 hover:text-gray-700'
+                                }`}
+                              >
+                                <Sparkles className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Toggle Active / Inactive */}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  dataService.savePartner({
+                                    ...partner,
+                                    active: !partner.active,
+                                  })
+                                }
+                                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold uppercase transition-colors cursor-pointer ${
+                                  partner.active
+                                    ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                }`}
+                              >
+                                {partner.active ? 'Aktiv' : 'Skjult'}
+                              </button>
+
+                              {/* Edit */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditPartner(partner)}
+                                className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-[#081326] transition-colors cursor-pointer"
+                                title="Rediger partner"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Delete */}
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePartnerClick(partner.id, partner.name)}
+                                className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 transition-colors cursor-pointer"
+                                title="Slet partner"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* CREATE / EDIT PARTNER MODAL */}
+            {isPartnerModalOpen && (
+              <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+                <div className="w-full max-w-lg bg-white rounded-3xl p-5 sm:p-6 shadow-2xl border border-gray-200 max-h-[92vh] overflow-y-auto text-[#081326]">
+                  {/* Modal Header */}
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-4">
+                    <div className="flex items-center gap-2">
+                      <HeartHandshake className="w-5 h-5 text-emerald-600" />
+                      <h3 className="font-extrabold text-base text-[#081326]">
+                        {editingPartner ? 'Rediger Partner' : 'Opret Ny Partner'}
+                      </h3>
+                    </div>
+                    <button
+                      onClick={() => setIsPartnerModalOpen(false)}
+                      className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {partnerSaveMsg && (
+                    <div className="mb-4 p-3 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-semibold border border-emerald-200">
+                      {partnerSaveMsg}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSavePartnerSubmit} className="space-y-4">
+                    {/* Virksomhedsnavn */}
+                    <div>
+                      <label className="block text-[11px] font-extrabold uppercase text-gray-500 mb-1">
+                        Virksomhedsnavn *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={partnerForm.name}
+                        onChange={(e) =>
+                          setPartnerForm((prev) => ({ ...prev, name: e.target.value }))
+                        }
+                        placeholder="F.eks. Raundahl & Moesby"
+                        className="w-full p-2.5 bg-gray-50 rounded-xl border border-gray-200 text-xs text-[#081326] focus:outline-hidden focus:border-blue-600"
+                      />
+                    </div>
+
+                    {/* Sponsorkategori */}
+                    <div>
+                      <label className="block text-[11px] font-extrabold uppercase text-gray-500 mb-1">
+                        Sponsor Kategori *
+                      </label>
+                      <select
+                        value={partnerForm.category}
+                        onChange={(e) =>
+                          setPartnerForm((prev) => ({
+                            ...prev,
+                            category: e.target.value as SponsorCategory,
+                          }))
+                        }
+                        className="w-full p-2.5 bg-gray-50 rounded-xl border border-gray-200 text-xs text-[#081326] font-medium focus:outline-hidden focus:border-blue-600"
+                      >
+                        <option value="HOVEDSPONSOR">1. HOVEDSPONSOR</option>
+                        <option value="AGF PLAY">2. AGF PLAY</option>
+                        <option value="AGF MATCH">3. AGF MATCH</option>
+                        <option value="AGF FORDEL">4. AGF FORDEL</option>
+                        <option value="ØVRIGE MATCHDAY-PARTNERE">5. ØVRIGE MATCHDAY-PARTNERE</option>
+                      </select>
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        Bestemmer placering og visuel fremhævning på den offentlige partnerside.
+                      </p>
+                    </div>
+
+                    {/* Logo Management */}
+                    <div className="space-y-2 p-3 bg-gray-50 rounded-2xl border border-gray-200">
+                      <label className="block text-[11px] font-extrabold uppercase text-gray-600">
+                        Partner Logo
+                      </label>
+
+                      {/* Preset selector */}
+                      <div>
+                        <span className="block text-[10px] font-bold text-gray-400 mb-1">
+                          Vælg fra eksisterende officielle AGF sponsorer:
+                        </span>
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setPartnerForm((prev) => ({ ...prev, logo: e.target.value }));
+                            }
+                          }}
+                          className="w-full p-2 bg-white rounded-lg border border-gray-200 text-xs text-[#081326]"
+                        >
+                          <option value="">-- Vælg officielt logo --</option>
+                          {PRESET_PARTNER_LOGOS.map((preset) => (
+                            <option key={preset.path} value={preset.path}>
+                              {preset.label} ({preset.path})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* File upload or custom URL */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                        <div>
+                          <span className="block text-[10px] font-bold text-gray-400 mb-1">
+                            Eller upload billedfil:
+                          </span>
+                          <label className="flex items-center justify-center gap-1.5 p-2 bg-white border border-gray-200 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-100 cursor-pointer transition-colors">
+                            <Upload className="w-3.5 h-3.5 text-gray-500" />
+                            <span>Upload logo</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handlePartnerFileUpload}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+
+                        <div>
+                          <span className="block text-[10px] font-bold text-gray-400 mb-1">
+                            Eller sti / URL:
+                          </span>
+                          <input
+                            type="text"
+                            value={partnerForm.logo}
+                            onChange={(e) =>
+                              setPartnerForm((prev) => ({ ...prev, logo: e.target.value }))
+                            }
+                            placeholder="/partners/logo.png eller https://..."
+                            className="w-full p-2 bg-white rounded-lg border border-gray-200 text-xs text-[#081326]"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Live preview */}
+                      <div className="flex items-center gap-3 pt-2">
+                        <span className="text-[10px] font-bold text-gray-400">Forhåndsvisning:</span>
+                        <div className="h-12 w-28 bg-white border border-gray-200 rounded-lg p-1.5 flex items-center justify-center">
+                          {partnerForm.logo ? (
+                            <img
+                              src={partnerForm.logo}
+                              alt="Logo preview"
+                              className="max-h-9 max-w-full object-contain"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = '/agf-logo.svg';
+                              }}
+                            />
+                          ) : (
+                            <span className="text-[10px] text-gray-400 italic">Intet logo</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Website URL */}
+                    <div>
+                      <label className="block text-[11px] font-extrabold uppercase text-gray-500 mb-1">
+                        Hjemmeside URL
+                      </label>
+                      <input
+                        type="url"
+                        value={partnerForm.websiteUrl}
+                        onChange={(e) =>
+                          setPartnerForm((prev) => ({ ...prev, websiteUrl: e.target.value }))
+                        }
+                        placeholder="https://..."
+                        className="w-full p-2.5 bg-gray-50 rounded-xl border border-gray-200 text-xs text-[#081326] focus:outline-hidden focus:border-blue-600"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        Åbner automatisk i en ny fane for tilskuere ved klik.
+                      </p>
+                    </div>
+
+                    {/* Short Description */}
+                    <div>
+                      <label className="block text-[11px] font-extrabold uppercase text-gray-500 mb-1">
+                        Kort Beskrivelse / Budskab (Valgfri)
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={partnerForm.shortDescription}
+                        onChange={(e) =>
+                          setPartnerForm((prev) => ({
+                            ...prev,
+                            shortDescription: e.target.value,
+                          }))
+                        }
+                        placeholder="Kort tekst om virksomheden eller partnerskabet..."
+                        className="w-full p-2.5 bg-gray-50 rounded-xl border border-gray-200 text-xs text-[#081326] focus:outline-hidden focus:border-blue-600"
+                      />
+                    </div>
+
+                    {/* Sort Order & Offer */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-extrabold uppercase text-gray-500 mb-1">
+                          Visningsrækkefølge (Tal)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="99"
+                          value={partnerForm.sortOrder}
+                          onChange={(e) =>
+                            setPartnerForm((prev) => ({
+                              ...prev,
+                              sortOrder: parseInt(e.target.value) || 1,
+                            }))
+                          }
+                          className="w-full p-2.5 bg-gray-50 rounded-xl border border-gray-200 text-xs text-[#081326]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-extrabold uppercase text-gray-500 mb-1">
+                          Valgfrit Kampdags-tilbud
+                        </label>
+                        <input
+                          type="text"
+                          value={partnerForm.offer}
+                          onChange={(e) =>
+                            setPartnerForm((prev) => ({ ...prev, offer: e.target.value }))
+                          }
+                          placeholder="F.eks. 15% rabat i dag"
+                          className="w-full p-2.5 bg-gray-50 rounded-xl border border-gray-200 text-xs text-[#081326]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Checkboxes: Active & Featured */}
+                    <div className="pt-2 border-t border-gray-100 space-y-2">
+                      <label className="flex items-center gap-2.5 text-xs text-[#081326] font-bold cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={partnerForm.active}
+                          onChange={(e) =>
+                            setPartnerForm((prev) => ({ ...prev, active: e.target.checked }))
+                          }
+                          className="w-4 h-4 rounded text-blue-600"
+                        />
+                        <span>Aktiv (vises offentligt i appen)</span>
+                      </label>
+
+                      <label className="flex items-center gap-2.5 text-xs text-[#081326] font-bold cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={partnerForm.featured}
+                          onChange={(e) =>
+                            setPartnerForm((prev) => ({ ...prev, featured: e.target.checked }))
+                          }
+                          className="w-4 h-4 rounded text-blue-600"
+                        />
+                        <span>Fremhæv som Dagens Partner på forsiden</span>
+                      </label>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-gray-100">
+                      <button
+                        type="button"
+                        onClick={() => setIsPartnerModalOpen(false)}
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-100 transition-colors cursor-pointer"
+                      >
+                        Annuller
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#081326] text-white hover:bg-black transition-colors cursor-pointer shadow-xs"
+                      >
+                        Gem Partner
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

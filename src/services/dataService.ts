@@ -31,12 +31,90 @@ export function getOrCreateDeviceId(): string {
   return deviceId;
 }
 
+function normalizePartnersList(partners: any[]): { partners: any[]; updated: boolean } {
+  if (!partners || !Array.isArray(partners)) {
+    return { partners: initialDatabase.partners, updated: true };
+  }
+
+  let updated = false;
+  // Deduplicate Scorjobbet.dk so it only ever exists once
+  let seenScorjobbet = false;
+  const deduped: any[] = [];
+
+  for (const p of partners) {
+    const isScorjobbet = p.id === 'part-scorjobbet' || (p.name && p.name.toLowerCase().includes('scorjobbet'));
+    if (isScorjobbet) {
+      if (seenScorjobbet) {
+        updated = true;
+        continue; // Skip duplicate
+      }
+      seenScorjobbet = true;
+      let pCopy = { ...p };
+      if (pCopy.category !== 'AGF PLAY' || pCopy.sponsorCategory !== 'AGF PLAY' || pCopy.sortOrder !== 6) {
+        pCopy.category = 'AGF PLAY';
+        pCopy.sponsorCategory = 'AGF PLAY';
+        pCopy.sortOrder = 6;
+        updated = true;
+      }
+      deduped.push(pCopy);
+    } else {
+      let pCopy = { ...p };
+      if (pCopy.id === 'part-kaufmann' && pCopy.sortOrder !== 1) {
+        pCopy.sortOrder = 1;
+        updated = true;
+      } else if (pCopy.id === 'part-v-steel' && pCopy.sortOrder !== 2) {
+        pCopy.sortOrder = 2;
+        updated = true;
+      }
+      // Ensure placeholder logos are updated with official assets
+      const defaultPartner = initialDatabase.partners.find((dp) => dp.id === pCopy.id);
+      if (defaultPartner && (pCopy.logo === '/agf-logo.svg' || !pCopy.logo)) {
+        pCopy.logo = defaultPartner.logo;
+        pCopy.logoUrl = defaultPartner.logoUrl;
+        updated = true;
+      }
+      deduped.push(pCopy);
+    }
+  }
+
+  // If Scorjobbet was missing, add it from initialDatabase
+  if (!seenScorjobbet) {
+    const defaultScorjobbet = initialDatabase.partners.find((dp) => dp.id === 'part-scorjobbet');
+    if (defaultScorjobbet) {
+      deduped.push(defaultScorjobbet);
+      updated = true;
+    }
+  }
+
+  return { partners: deduped, updated };
+}
+
 // Local cache
 let cachedDb: MatchdayDatabase = (() => {
   try {
     const raw = localStorage.getItem(DB_STORAGE_KEY);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (!parsed.partners || !parsed.partners.some((p: any) => p.category === 'HOVEDSPONSOR')) {
+        parsed.partners = initialDatabase.partners;
+      } else {
+        const { partners: normPartners } = normalizePartnersList(parsed.partners);
+        parsed.partners = normPartners;
+      }
+      if (parsed.matchdays) {
+        parsed.matchdays = parsed.matchdays.map((m: any) => {
+          if (!m.looadUrl || !m.looadUrl.includes('klub-agf-haandbold')) {
+            return {
+              ...m,
+              looadUrl: 'https://looad.dk/pages/klub-agf-haandbold',
+              looadTitle: 'STØT AGF HÅNDBOLD MED LOOAD',
+              looadDescription: 'Skift elselskab til Looad og støt samtidig AGF Håndbold.',
+            };
+          }
+          return m;
+        });
+      }
+      return parsed;
     }
   } catch (e) {
     console.warn('Could not parse cached local database, using seed:', e);
@@ -69,6 +147,34 @@ export async function syncFromServer(): Promise<MatchdayDatabase> {
     if (res.ok) {
       const serverData = await res.json();
       if (serverData && serverData.matchdays) {
+        if (!serverData.partners || !serverData.partners.some((p: any) => p.category === 'HOVEDSPONSOR')) {
+          serverData.partners = initialDatabase.partners;
+          await pushToServer(serverData);
+        } else {
+          let updated = false;
+          const { partners: normPartners, updated: partnersUpdated } = normalizePartnersList(serverData.partners);
+          if (partnersUpdated) {
+            serverData.partners = normPartners;
+            updated = true;
+          }
+          if (serverData.matchdays) {
+            serverData.matchdays = serverData.matchdays.map((m: any) => {
+              if (!m.looadUrl || !m.looadUrl.includes('klub-agf-haandbold')) {
+                updated = true;
+                return {
+                  ...m,
+                  looadUrl: 'https://looad.dk/pages/klub-agf-haandbold',
+                  looadTitle: 'STØT AGF HÅNDBOLD MED LOOAD',
+                  looadDescription: 'Skift elselskab til Looad og støt samtidig AGF Håndbold.',
+                };
+              }
+              return m;
+            });
+          }
+          if (updated) {
+            await pushToServer(serverData);
+          }
+        }
         cachedDb = serverData;
         notifyListeners();
         return cachedDb;
@@ -567,7 +673,8 @@ export const dataService = {
   async updateLooadSettings(matchdayId: string, url: string, title?: string, description?: string) {
     const m = cachedDb.matchdays.find(item => item.id === matchdayId);
     if (m) {
-      m.looadUrl = url;
+      const cleanUrl = url.trim() || 'https://looad.dk/pages/klub-agf-haandbold';
+      m.looadUrl = (!cleanUrl || cleanUrl.includes('event')) ? 'https://looad.dk/pages/klub-agf-haandbold' : cleanUrl;
       if (title) m.looadTitle = title;
       if (description) m.looadDescription = description;
       notifyListeners();

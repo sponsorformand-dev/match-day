@@ -106,6 +106,7 @@ export default function App() {
                 announcements={activeAnnouncements}
                 votingSessions={db.votingSessions}
                 coupons={db.coupons}
+                partners={db.partners}
                 onNavigate={handleTabChange}
                 onVoteMatch={handleVoteForMatch}
               />

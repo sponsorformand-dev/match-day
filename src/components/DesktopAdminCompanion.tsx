@@ -292,10 +292,13 @@ export const DesktopAdminCompanion: React.FC<DesktopAdminCompanionProps> = ({
             <h2 className="font-black uppercase text-xs tracking-widest text-white/40 mb-3">
               Sponsor Partner
             </h2>
-            <div className="bg-white rounded-xl p-4 flex items-center justify-center shadow-xs">
-              <span className="text-[#081326] font-black italic text-xl tracking-wider">
-                LOOAD
-              </span>
+            <div className="bg-white rounded-xl p-3 flex items-center justify-center shadow-xs">
+              <img
+                src="/partners/looad.png"
+                alt="Looad"
+                className="max-h-7 max-w-[120px] object-contain"
+                referrerPolicy="no-referrer"
+              />
             </div>
           </div>
         </div>

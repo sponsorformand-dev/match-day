@@ -1,67 +1,51 @@
 import React from 'react';
 import { ActiveTab } from '../types.ts';
-import { Trophy, Tag, UserCheck, HeartHandshake, X, ChevronRight, Info, Share2, ScanLine } from 'lucide-react';
+import { Trophy, Zap, HeartHandshake, X, ChevronRight, Info, Share2 } from 'lucide-react';
 
 interface MoreModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectTab: (tab: ActiveTab) => void;
-  hasCoupons: boolean;
+  hasCoupons?: boolean;
 }
 
 export const MoreModal: React.FC<MoreModalProps> = ({
   isOpen,
   onClose,
   onSelectTab,
-  hasCoupons,
 }) => {
   if (!isOpen) return null;
 
   const items = [
     {
-      id: 'del-matchday' as ActiveTab,
-      label: 'Del Matchday',
-      desc: 'Scan QR-kode og del appen direkte med en sidemand',
-      icon: Share2,
-      badge: 'QR & Deling',
-      color: 'bg-red-600/10 text-red-600',
-    },
-    {
-      id: 'tilbud' as ActiveTab,
-      label: 'Tilbud & Kuponer',
-      desc: 'Aktiver pausetilbud og spar penge i kiosken',
-      icon: Tag,
-      badge: hasCoupons ? 'Aktive tilbud' : undefined,
-      color: 'bg-rose-500/10 text-[#C8102E]',
-    },
-    {
       id: 'konkurrencer' as ActiveTab,
-      label: 'Konkurrencer & Leaderboards',
+      label: 'Konkurrencer',
       desc: 'Skudmåler, præcision & dagens rekorder',
       icon: Trophy,
       color: 'bg-amber-500/10 text-amber-700',
     },
     {
       id: 'tilmelding' as ActiveTab,
-      label: 'Tilmelding (Looad)',
-      desc: 'Tilmeld dig pauselodtrækningen og fanzonen',
-      icon: UserCheck,
-      color: 'bg-blue-500/10 text-blue-700',
+      label: 'Støt klubben (Looad)',
+      desc: 'Skift elselskab til Looad og støt samtidig AGF Håndbold',
+      icon: Zap,
+      badge: 'Looad El',
+      color: 'bg-amber-500/10 text-amber-700',
     },
     {
       id: 'partnere' as ActiveTab,
-      label: 'Dagens Partnere & Sponsorer',
-      desc: 'Se hvem der støtter AGF Håndbold',
+      label: 'Partnere',
+      desc: 'Se de stolte sponsorer bag AGF Håndbold',
       icon: HeartHandshake,
       color: 'bg-emerald-500/10 text-emerald-700',
     },
     {
-      id: 'scanner' as ActiveTab,
-      label: 'Kuponscanner (Personale)',
-      desc: 'Hurtig QR-scanning af gæsternes kuponer i kiosken',
-      icon: ScanLine,
-      badge: 'Kiosk',
-      color: 'bg-[#081326]/10 text-[#081326]',
+      id: 'del-matchday' as ActiveTab,
+      label: 'Del Matchday',
+      desc: 'Scan QR-kode og del appen direkte med en sidemand',
+      icon: Share2,
+      badge: 'QR',
+      color: 'bg-red-600/10 text-red-600',
     },
   ];
 

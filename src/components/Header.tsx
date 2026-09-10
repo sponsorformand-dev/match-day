@@ -1,33 +1,13 @@
 import React from 'react';
 import { Matchday } from '../types.ts';
-import { Shield, ShieldAlert, Sparkles } from 'lucide-react';
 
 interface HeaderProps {
   matchday?: Matchday;
-  onOpenAdmin: () => void;
-  isAdminActive: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ matchday, onOpenAdmin, isAdminActive }) => {
+export const Header: React.FC<HeaderProps> = ({ matchday }) => {
   return (
-    <header className="bg-[#081326] text-white p-4 pt-6 pb-4 sm:pt-8 text-white flex flex-col items-center border-b border-white/10 relative shadow-md">
-      {/* Top right Admin shortcut button */}
-      <div className="absolute top-4 right-4">
-        <button
-          id="admin-toggle-btn"
-          onClick={onOpenAdmin}
-          aria-label="Admin adgang"
-          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-black uppercase tracking-wider transition-all ${
-            isAdminActive
-              ? 'bg-red-600 text-white shadow-sm'
-              : 'bg-white/10 text-gray-200 hover:bg-white/20'
-          }`}
-        >
-          {isAdminActive ? <ShieldAlert className="w-3.5 h-3.5" /> : <Shield className="w-3.5 h-3.5 text-gray-300" />}
-          <span className="text-[10px]">{isAdminActive ? 'Admin' : 'Personale'}</span>
-        </button>
-      </div>
-
+    <header className="bg-[#081326] text-white p-4 pt-6 pb-4 sm:pt-8 flex flex-col items-center border-b border-white/10 relative shadow-md">
       {/* Centerpiece Bold Brand Emblem */}
       <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-2 shadow-sm border border-white/20 p-1">
         <img

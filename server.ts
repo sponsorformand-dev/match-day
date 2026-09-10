@@ -21,7 +21,26 @@ function loadDb() {
   try {
     if (fs.existsSync(DB_FILE)) {
       const data = fs.readFileSync(DB_FILE, 'utf-8');
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      if (parsed && Array.isArray(parsed.partners)) {
+        let seenScorjobbet = false;
+        parsed.partners = parsed.partners.filter((p: any) => {
+          const isScorjobbet = p.id === 'part-scorjobbet' || (p.name && p.name.toLowerCase().includes('scorjobbet'));
+          if (isScorjobbet) {
+            if (seenScorjobbet) return false;
+            seenScorjobbet = true;
+            p.category = 'AGF PLAY';
+            p.sponsorCategory = 'AGF PLAY';
+            p.sortOrder = 6;
+          } else if (p.id === 'part-kaufmann') {
+            p.sortOrder = 1;
+          } else if (p.id === 'part-v-steel') {
+            p.sortOrder = 2;
+          }
+          return true;
+        });
+      }
+      return parsed;
     }
   } catch (err) {
     console.error('Error reading db file:', err);
