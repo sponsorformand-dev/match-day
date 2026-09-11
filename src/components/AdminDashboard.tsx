@@ -75,15 +75,71 @@ type AdminSection =
   | 'analytics';
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) => {
-  // Authentication state (simple secure PIN for volunteers)
+  // Authentication & Session Management (12-hour active session)
+  const [session, setSession] = useState<{ id: string; role: 'ADMIN' | 'STAFF' } | null>(() => {
+    return dataService.getCurrentSession();
+  });
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return sessionStorage.getItem('agf_admin_auth') === 'true';
+    return !!dataService.getCurrentSession() || sessionStorage.getItem('agf_admin_auth') === 'true';
   });
   const [pinInput, setPinInput] = useState<string>('');
+  const [loginLoading, setLoginLoading] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
+  // Upgrade to admin state for staff
+  const [adminUpgradeCode, setAdminUpgradeCode] = useState<string>('');
+  const [upgradeError, setUpgradeError] = useState<string | null>(null);
+  const [upgradeLoading, setUpgradeLoading] = useState<boolean>(false);
+
+  // Reset Matchday state
+  const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
+  const [resetLoading, setResetLoading] = useState<boolean>(false);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
+
+  // Programme Item Editor State
+  const [editingScheduleItem, setEditingScheduleItem] = useState<ScheduleItem | null>(null);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState<boolean>(false);
+  const [scheduleForm, setScheduleForm] = useState<{
+    id?: string;
+    time: string;
+    title: string;
+    description: string;
+    venue: string;
+    status: 'upcoming' | 'live' | 'completed';
+  }>({
+    time: '13:00',
+    title: '',
+    description: '',
+    venue: 'Ceres Arena',
+    status: 'upcoming',
+  });
+
+  // Competition Editor State
+  const [editingCompetition, setEditingCompetition] = useState<Competition | null>(null);
+  const [isCompetitionModalOpen, setIsCompetitionModalOpen] = useState<boolean>(false);
+  const [compActionMsg, setCompActionMsg] = useState<string | null>(null);
+  const [competitionForm, setCompetitionForm] = useState<{
+    id?: string;
+    name: string;
+    description: string;
+    scoringUnit: string;
+    higherScoreWins: boolean;
+    sponsor: string;
+    active: boolean;
+  }>({
+    name: '',
+    description: '',
+    scoringUnit: 'km/t',
+    higherScoreWins: true,
+    sponsor: 'Sport 24',
+    active: true,
+  });
+
   // Active admin section
-  const [currentSection, setCurrentSection] = useState<AdminSection>('matchday');
+  const [currentSection, setCurrentSection] = useState<AdminSection>(() => {
+    const s = dataService.getCurrentSession();
+    return s?.role === 'STAFF' ? 'scanner' : 'matchday';
+  });
 
   // Fast score entry state
   const [scoreCompId, setScoreCompId] = useState<string>('');
@@ -248,19 +304,107 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
     }
   };
 
-  // Handle Login
-  const handleLogin = (e: React.FormEvent) => {
+  const isAdmin = session?.role === 'ADMIN' || sessionStorage.getItem('agf_admin_auth') === 'true';
+  const isStaff = session?.role === 'STAFF';
+
+  // Handle Unified Login
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput === (db.adminPin || '1880') || pinInput.toLowerCase() === 'agf1880' || pinInput.toLowerCase() === 'sponsorformand@agfhaandbold.dk') {
+    if (!pinInput.trim()) {
+      setLoginError('Indtast venligst adgangskode');
+      return;
+    }
+    setLoginLoading(true);
+    setLoginError(null);
+    const res = await dataService.login(pinInput.trim(), 'Kontrolpanel');
+    setLoginLoading(false);
+    if (res.success && res.role) {
+      const s = dataService.getCurrentSession();
+      setSession(s);
       setIsAuthenticated(true);
-      sessionStorage.setItem('agf_admin_auth', 'true');
-      setLoginError(null);
+      setPinInput('');
+      if (res.role === 'STAFF') {
+        setCurrentSection('scanner');
+      } else {
+        setCurrentSection('matchday');
+      }
     } else {
-      setLoginError('Forkert adgangskode. Prøv stiftelsesåret 1880.');
+      setLoginError(res.error || 'Forkert adgangskode. Prøv igen.');
+    }
+  };
+
+  // Handle Upgrade to Admin from Staff session
+  const handleUpgradeToAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminUpgradeCode.trim()) {
+      setUpgradeError('Indtast administratorkode');
+      return;
+    }
+    setUpgradeLoading(true);
+    setUpgradeError(null);
+    const res = await dataService.login(adminUpgradeCode.trim(), 'Opgradering');
+    setUpgradeLoading(false);
+    if (res.success && res.role === 'ADMIN') {
+      const s = dataService.getCurrentSession();
+      setSession(s);
+      setAdminUpgradeCode('');
+    } else {
+      setUpgradeError('Forkert administratorkode');
+    }
+  };
+
+  const handleSaveScheduleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scheduleForm.title.trim() || !scheduleForm.time.trim()) return;
+
+    const itemToSave: ScheduleItem = {
+      id: scheduleForm.id || `sch-${Date.now()}`,
+      time: scheduleForm.time.trim(),
+      title: scheduleForm.title.trim(),
+      description: scheduleForm.description.trim() || undefined,
+      venue: scheduleForm.venue.trim() || undefined,
+      status: scheduleForm.status,
+      order: editingScheduleItem ? editingScheduleItem.order : (db.schedule.length + 1),
+    };
+
+    await dataService.saveScheduleItem(itemToSave);
+    setIsScheduleModalOpen(false);
+  };
+
+  const handleSaveCompetitionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!competitionForm.name.trim()) return;
+
+    const compToSave: Competition = {
+      id: competitionForm.id || `comp-${Date.now()}`,
+      name: competitionForm.name.trim(),
+      description: competitionForm.description.trim() || '',
+      scoringUnit: competitionForm.scoringUnit.trim() || 'km/t',
+      higherIsBetter: competitionForm.higherIsBetter,
+      active: competitionForm.active,
+      sponsor: competitionForm.sponsor.trim() || 'AGF Håndbold',
+    };
+
+    await dataService.saveCompetition(compToSave);
+    setIsCompetitionModalOpen(false);
+  };
+
+  const handleConfirmReset = async () => {
+    setResettingMatchday(true);
+    const res = await dataService.resetMatchday();
+    setResettingMatchday(false);
+    setIsResetModalOpen(false);
+    if (res.success) {
+      setResetNotice('Matchday data er nu nulstillet til standard.');
+      setTimeout(() => setResetNotice(null), 5000);
+    } else {
+      alert(res.error || 'Kunne ikke nulstille Matchday.');
     }
   };
 
   const handleLogout = () => {
+    dataService.logout();
+    setSession(null);
     setIsAuthenticated(false);
     sessionStorage.removeItem('agf_admin_auth');
   };
@@ -273,7 +417,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
             <img src="/agf-logo.svg" alt="AGF" className="w-10 h-10 object-contain" referrerPolicy="no-referrer" />
           </div>
           <h2 className="text-xl font-extrabold text-center font-['Teko'] text-2xl tracking-wide">
-            AGF Matchday Admin
+            AGF Matchday Login
           </h2>
           <p className="text-xs text-gray-500 text-center mb-5">
             Adgang for AGF Håndbold personale og frivillige
@@ -282,36 +426,40 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
           <form onSubmit={handleLogin} className="space-y-3">
             <div>
               <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
-                Adgangskode (Standard: 1880)
+                Adgangskode
               </label>
               <input
                 id="admin-pin-input"
                 type="password"
                 value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
-                placeholder="Indtast PIN eller kode"
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 text-center font-mono text-lg focus:outline-none focus:ring-2 focus:ring-[#081326]"
+                onChange={(e) => {
+                  setPinInput(e.target.value);
+                  if (loginError) setLoginError(null);
+                }}
+                placeholder="Indtast adgangskode..."
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 text-center font-mono text-base focus:outline-none focus:ring-2 focus:ring-[#081326]"
                 autoFocus
               />
             </div>
 
             {loginError && (
-              <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-lg text-center">
+              <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-lg text-center font-medium">
                 {loginError}
               </div>
             )}
 
             <button
               type="submit"
-              className="w-full py-3 bg-[#081326] hover:bg-black text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md transition-all"
+              disabled={loginLoading}
+              className="w-full py-3 bg-[#081326] hover:bg-black text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md transition-all disabled:opacity-50 cursor-pointer"
             >
-              Log Ind i Kontrolpanel
+              {loginLoading ? 'Logger ind...' : 'Log Ind'}
             </button>
           </form>
 
           <button
             onClick={onClose}
-            className="w-full mt-3 py-2 text-xs text-gray-500 hover:text-gray-800 text-center"
+            className="w-full mt-3 py-2 text-xs text-gray-500 hover:text-gray-800 text-center cursor-pointer"
           >
             ← Tilbage til tilskuer-appen
           </button>
@@ -322,20 +470,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
 
   const activeMatchday = db.matchdays.find((m) => m.id === db.activeMatchdayId) || db.matchdays[0];
 
+  const ADMIN_ONLY_SECTIONS: AdminSection[] = [
+    'matchday',
+    'kampe',
+    'program',
+    'stem',
+    'kiosk',
+    'kuponer',
+    'staff',
+    'tilmelding',
+    'partnere',
+    'beskeder',
+    'analytics',
+  ];
+
   const navItems = [
-    { id: 'matchday' as AdminSection, label: 'Matchday', icon: Calendar },
-    { id: 'scanner' as AdminSection, label: 'Kuponscanner', icon: ScanLine },
-    { id: 'staff' as AdminSection, label: 'Personale', icon: Users },
-    { id: 'kampe' as AdminSection, label: 'Kampe', icon: Flame },
-    { id: 'program' as AdminSection, label: 'Program', icon: Clock },
-    { id: 'stem' as AdminSection, label: 'Kampens Spiller', icon: Star },
-    { id: 'kiosk' as AdminSection, label: 'Kiosk', icon: Beer },
-    { id: 'kuponer' as AdminSection, label: 'Kuponer & Stats', icon: Tag },
-    { id: 'konkurrencer' as AdminSection, label: 'Konkurrencer', icon: Trophy },
-    { id: 'tilmelding' as AdminSection, label: 'Looad partnerlink', icon: Zap },
-    { id: 'partnere' as AdminSection, label: 'Partnere', icon: HeartHandshake },
-    { id: 'beskeder' as AdminSection, label: 'Beskeder', icon: Megaphone },
-    { id: 'analytics' as AdminSection, label: 'Statistik', icon: BarChart3 },
+    { id: 'matchday' as AdminSection, label: 'Matchday', icon: Calendar, adminOnly: true },
+    { id: 'scanner' as AdminSection, label: 'Kuponscanner', icon: ScanLine, adminOnly: false },
+    { id: 'staff' as AdminSection, label: 'Personale', icon: Users, adminOnly: true },
+    { id: 'kampe' as AdminSection, label: 'Kampe', icon: Flame, adminOnly: true },
+    { id: 'program' as AdminSection, label: 'Program', icon: Clock, adminOnly: true },
+    { id: 'stem' as AdminSection, label: 'Kampens Spiller', icon: Star, adminOnly: true },
+    { id: 'kiosk' as AdminSection, label: 'Kiosk', icon: Beer, adminOnly: true },
+    { id: 'kuponer' as AdminSection, label: 'Kuponer & Stats', icon: Tag, adminOnly: true },
+    { id: 'konkurrencer' as AdminSection, label: 'Konkurrencer', icon: Trophy, adminOnly: false },
+    { id: 'tilmelding' as AdminSection, label: 'Looad partnerlink', icon: Zap, adminOnly: true },
+    { id: 'partnere' as AdminSection, label: 'Partnere', icon: HeartHandshake, adminOnly: true },
+    { id: 'beskeder' as AdminSection, label: 'Beskeder', icon: Megaphone, adminOnly: true },
+    { id: 'analytics' as AdminSection, label: 'Statistik', icon: BarChart3, adminOnly: true },
   ];
 
   return (
@@ -348,14 +510,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-black uppercase tracking-wider bg-[#C8102E] text-white px-1.5 py-0.2 rounded">
-                Admin
+              <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded text-white ${
+                isAdmin ? 'bg-[#C8102E]' : 'bg-emerald-600'
+              }`}>
+                {isAdmin ? 'Admin' : 'Personale'}
               </span>
               <span className="text-xs font-bold text-gray-200 truncate max-w-[150px]">
                 {activeMatchday?.title || 'AGF Matchday'}
               </span>
             </div>
-            <p className="text-[11px] text-gray-400">Mobil kontrolpanel</p>
+            <p className="text-[11px] text-gray-400">
+              {isAdmin ? 'Fuld administratoradgang' : 'Scanner- & resultatadgang'}
+            </p>
           </div>
         </div>
 
@@ -363,15 +529,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
           <button
             onClick={handleLogout}
             title="Log ud"
-            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 text-xs flex items-center gap-1"
+            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-gray-300 text-xs flex items-center gap-1 cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline text-[11px]">Log ud</span>
           </button>
           <button
             onClick={onClose}
-            className="px-3 py-1.5 rounded-lg bg-white text-[#081326] font-bold text-xs uppercase tracking-wider shadow-sm hover:bg-gray-100"
+            className="px-3 py-1.5 rounded-lg bg-white text-[#081326] font-bold text-xs uppercase tracking-wider shadow-sm hover:bg-gray-100 cursor-pointer"
           >
-            Se Tilskuer App
+            Se App
           </button>
         </div>
       </div>
@@ -381,19 +548,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentSection === item.id;
+          const isRestricted = item.adminOnly && !isAdmin;
           return (
             <button
               key={item.id}
               id={`admin-tab-${item.id}`}
               onClick={() => setCurrentSection(item.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 transition-all select-none ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 transition-all select-none cursor-pointer ${
                 isActive
                   ? 'bg-[#081326] text-white shadow-xs'
+                  : isRestricted
+                  ? 'bg-gray-100/70 text-gray-400 hover:bg-gray-200/80'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
               <span>{item.label}</span>
+              {isRestricted && <Lock className="w-2.5 h-2.5 text-amber-600 ml-0.5 opacity-80" />}
             </button>
           );
         })}
@@ -401,6 +572,49 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
 
       {/* Admin Content Area */}
       <div className="flex-1 overflow-y-auto p-4 max-w-2xl mx-auto w-full pb-20">
+        {/* Permission Gate for Staff trying to access Admin-Only sections */}
+        {isStaff && !isAdmin && ADMIN_ONLY_SECTIONS.includes(currentSection) ? (
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 text-center space-y-4 max-w-md mx-auto my-8 shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 mx-auto flex items-center justify-center">
+              <Lock className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black uppercase text-[#081326]">
+                Kræver administratoradgang
+              </h3>
+              <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+                Du er logget ind som personale (kuponscanner og resultatregistrering). Redigering af denne sektion kræver administratoradgang.
+              </p>
+            </div>
+            <form onSubmit={handleUpgradeToAdmin} className="space-y-3 pt-2">
+              <div>
+                <input
+                  type="password"
+                  value={adminUpgradeCode}
+                  onChange={(e) => {
+                    setAdminUpgradeCode(e.target.value);
+                    if (upgradeError) setUpgradeError(null);
+                  }}
+                  placeholder="Indtast administratorkode..."
+                  className="w-full px-4 py-3 rounded-2xl border border-gray-200 text-center font-bold text-sm tracking-wider focus:outline-hidden focus:border-[#081326]"
+                />
+              </div>
+              {upgradeError && (
+                <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-medium">
+                  {upgradeError}
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={upgradeLoading}
+                className="w-full py-3 bg-[#081326] hover:bg-black text-white text-xs font-black uppercase tracking-wider rounded-2xl shadow-md transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {upgradeLoading ? 'Låser op...' : 'Lås op som Administrator'}
+              </button>
+            </form>
+          </div>
+        ) : (
+          <>
         {/* ================= SECTION: MATCHDAY ================= */}
         {currentSection === 'matchday' && (
           <div className="space-y-4">
@@ -621,6 +835,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
                 Standard: <code className="font-mono text-[10px] text-gray-600">https://looad.dk/pages/klub-agf-haandbold</code>
               </div>
             </div>
+
+            {/* Danger Zone: Nulstil Matchday */}
+            <div className="bg-white rounded-2xl p-5 border-2 border-red-200 shadow-xs space-y-3 mt-6">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center text-red-600">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-red-700 uppercase tracking-wide">
+                    Nulstil Matchday
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Klargør systemet til en ny kampdag eller nulstil testdata.
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-600 leading-relaxed">
+                Nulstilling sletter alle stemmer, scanninger, indløste kuponer og dagens konkurrenceresultater. Grundopsætningen (partnere, kioskprodukter, kuponkatalog og kampe) bevares intakt.
+              </p>
+
+              {resetNotice && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl font-bold text-center animate-fade-in">
+                  ✓ {resetNotice}
+                </div>
+              )}
+
+              <button
+                type="button"
+                id="admin-reset-matchday-btn"
+                onClick={() => setIsResetModalOpen(true)}
+                className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Nulstil Matchday</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -765,60 +1016,127 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
 
         {/* ================= SECTION: PROGRAM ================= */}
         {currentSection === 'program' && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
-              <h3 className="font-bold text-sm text-[#081326] uppercase tracking-wider">
-                Tidsplan for Dagen
-              </h3>
-              <span className="text-xs text-gray-500">Skift status med ét tryk</span>
+              <div>
+                <h3 className="font-bold text-sm text-[#081326] uppercase tracking-wider">
+                  Dagens Program & Tidsplan
+                </h3>
+                <span className="text-xs text-gray-500">Styr dagens aktiviteter, tidspunkter og lokationer</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingScheduleItem(null);
+                  setScheduleForm({
+                    time: '13:00',
+                    title: '',
+                    description: '',
+                    venue: 'Ceres Arena',
+                    status: 'upcoming',
+                  });
+                  setIsScheduleModalOpen(true);
+                }}
+                className="px-3 py-1.5 bg-[#081326] hover:bg-black text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Nyt Punkt</span>
+              </button>
             </div>
 
-            <div className="space-y-2">
-              {db.schedule.map((item) => (
-                <div key={item.id} className="bg-white rounded-2xl p-3.5 border border-gray-200 shadow-xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-xs bg-gray-100 px-2 py-0.5 rounded">
-                        kl. {item.time}
-                      </span>
-                      <h4 className="font-bold text-sm text-[#081326]">{item.title}</h4>
+            {db.schedule.length === 0 ? (
+              <div className="bg-white rounded-2xl p-6 text-center text-gray-400 text-xs border border-gray-200">
+                Ingen programpunkter oprettet endnu. Tryk på "Nyt Punkt" ovenfor.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {db.schedule.map((item, idx) => (
+                  <div key={item.id} className="bg-white rounded-2xl p-4 border border-gray-200 shadow-xs space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2.5 flex-1">
+                        <span className="font-mono font-bold text-xs bg-gray-100 text-[#081326] px-2.5 py-1 rounded-lg shrink-0">
+                          kl. {item.time}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-sm text-[#081326] leading-tight">{item.title}</h4>
+                          {item.venue && (
+                            <span className="text-[11px] font-semibold text-gray-400 block mt-0.5">
+                              📍 {item.venue}
+                            </span>
+                          )}
+                          {item.description && (
+                            <p className="text-xs text-gray-500 mt-1 leading-relaxed">{item.description}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Action buttons: Edit & Delete */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingScheduleItem(item);
+                            setScheduleForm({
+                              id: item.id,
+                              time: item.time,
+                              title: item.title,
+                              description: item.description || '',
+                              venue: item.venue || 'Ceres Arena',
+                              status: item.status,
+                            });
+                            setIsScheduleModalOpen(true);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-[#081326] hover:bg-gray-100 rounded-lg cursor-pointer"
+                          title="Rediger punkt"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (confirm(`Vil du slette programpunktet "${item.title}"?`)) {
+                              await dataService.deleteScheduleItem(item.id);
+                            }
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
+                          title="Slet punkt"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Status Toggle Buttons */}
+                    <div className="flex gap-2 pt-2 border-t border-gray-100">
+                      <button
+                        onClick={() => dataService.saveScheduleItem({ ...item, status: 'upcoming' })}
+                        className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold uppercase transition-all cursor-pointer ${
+                          item.status === 'upcoming' ? 'bg-gray-300 text-gray-800' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                      >
+                        Kommende
+                      </button>
+                      <button
+                        onClick={() => dataService.saveScheduleItem({ ...item, status: 'live' })}
+                        className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold uppercase transition-all cursor-pointer ${
+                          item.status === 'live' ? 'bg-[#C8102E] text-white shadow-xs animate-pulse' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                      >
+                        I gang nu (LIVE)
+                      </button>
+                      <button
+                        onClick={() => dataService.saveScheduleItem({ ...item, status: 'completed' })}
+                        className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold uppercase transition-all cursor-pointer ${
+                          item.status === 'completed' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                      >
+                        Afsluttet
+                      </button>
                     </div>
                   </div>
-
-                  {item.description && (
-                    <p className="text-xs text-gray-500">{item.description}</p>
-                  )}
-
-                  {/* Status Toggle Buttons */}
-                  <div className="flex gap-2 pt-1 border-t border-gray-100">
-                    <button
-                      onClick={() => dataService.saveScheduleItem({ ...item, status: 'upcoming' })}
-                      className={`flex-1 py-1 rounded-lg text-[11px] font-bold uppercase ${
-                        item.status === 'upcoming' ? 'bg-gray-300 text-gray-800' : 'bg-gray-100 text-gray-500'
-                      }`}
-                    >
-                      Kommende
-                    </button>
-                    <button
-                      onClick={() => dataService.saveScheduleItem({ ...item, status: 'live' })}
-                      className={`flex-1 py-1 rounded-lg text-[11px] font-bold uppercase ${
-                        item.status === 'live' ? 'bg-[#C8102E] text-white shadow-xs animate-pulse' : 'bg-gray-100 text-gray-500'
-                      }`}
-                    >
-                      I gang nu (LIVE)
-                    </button>
-                    <button
-                      onClick={() => dataService.saveScheduleItem({ ...item, status: 'completed' })}
-                      className={`flex-1 py-1 rounded-lg text-[11px] font-bold uppercase ${
-                        item.status === 'completed' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'
-                      }`}
-                    >
-                      Afsluttet
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1479,6 +1797,120 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Manage Competitions & Reset Scores */}
+            <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-[#081326] flex items-center gap-1.5">
+                  <Trophy className="w-4 h-4 text-amber-500" />
+                  <span>Konkurrencer & Opsætning</span>
+                </h4>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingCompetition(null);
+                      setCompetitionForm({
+                        name: '',
+                        description: '',
+                        scoringUnit: 'km/t',
+                        higherIsBetter: true,
+                        active: true,
+                        sponsor: 'AGF Partner',
+                      });
+                      setIsCompetitionModalOpen(true);
+                    }}
+                    className="px-2.5 py-1 bg-[#081326] hover:bg-black text-white text-[11px] font-bold uppercase rounded-lg cursor-pointer flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Ny</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                {db.competitions.map((comp) => {
+                  const compScores = db.scores.filter((s) => s.competitionId === comp.id);
+                  return (
+                    <div key={comp.id} className="p-3 bg-gray-50 rounded-xl border border-gray-100 space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-[#081326]">{comp.name}</span>
+                            <span className="text-[10px] font-mono font-bold bg-white px-1.5 py-0.5 rounded border text-gray-600">
+                              {comp.scoringUnit}
+                            </span>
+                          </div>
+                          {comp.description && (
+                            <p className="text-xs text-gray-500 mt-0.5">{comp.description}</p>
+                          )}
+                          <div className="text-[11px] text-gray-400 mt-1 flex items-center gap-3">
+                            <span>Sponsor: {comp.sponsor || 'AGF Håndbold'}</span>
+                            <span>•</span>
+                            <span>{compScores.length} registrerede scores</span>
+                          </div>
+                        </div>
+
+                        {isAdmin && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCompetition(comp);
+                                setCompetitionForm({
+                                  id: comp.id,
+                                  name: comp.name,
+                                  description: comp.description || '',
+                                  scoringUnit: comp.scoringUnit,
+                                  higherIsBetter: comp.higherIsBetter,
+                                  active: comp.active,
+                                  sponsor: comp.sponsor || '',
+                                });
+                                setIsCompetitionModalOpen(true);
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-[#081326] hover:bg-white rounded-lg cursor-pointer"
+                              title="Rediger konkurrence"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (confirm(`Vil du slette konkurrencen "${comp.name}" og tilhørende resultater?`)) {
+                                  await dataService.deleteCompetition(comp.id);
+                                }
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
+                              title="Slet konkurrence"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Clear Scores Button */}
+                      {compScores.length > 0 && (
+                        <div className="pt-2 border-t border-gray-200/60 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (confirm(`Er du sikker på, at du vil rydde alle ${compScores.length} resultater for "${comp.name}"?`)) {
+                                await dataService.clearCompetitionScores(comp.id);
+                              }
+                            }}
+                            className="text-[11px] font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Ryd alle resultater for {comp.name}</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -2243,7 +2675,310 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
             </div>
           </div>
         )}
+        </>
+        )}
       </div>
+
+      {/* ================= MODAL: NULSTIL MATCHDAY ================= */}
+      {isResetModalOpen && (
+        <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border border-red-100">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 border border-red-200 text-red-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="text-center">
+              <h3 className="text-lg font-black uppercase text-[#081326]">
+                Nulstil Matchday?
+              </h3>
+              <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                Er du sikker på, at du vil nulstille dagens data?
+              </p>
+            </div>
+
+            <div className="bg-red-50/70 p-3.5 rounded-2xl border border-red-200 text-xs text-red-900 space-y-1">
+              <p className="font-bold">Følgende data slettes permanent:</p>
+              <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-red-800">
+                <li>Alle afgivne stemmer på Kampens Spiller</li>
+                <li>Alle indløsninger og aktiveringer af kuponer</li>
+                <li>Kuponscannerens logbog og audit-trail</li>
+                <li>Dagens registrerede resultater i fanzone-konkurrencer</li>
+                <li>Dagens app-besøgstæller</li>
+              </ul>
+              <p className="text-[11px] text-gray-600 pt-1">
+                Kioskprodukter, kampe, sponsorer og faste kuponer bevares.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsResetModalOpen(false)}
+                disabled={resettingMatchday}
+                className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs uppercase tracking-wider rounded-xl transition-colors cursor-pointer"
+              >
+                Annuller
+              </button>
+              <button
+                type="button"
+                id="admin-confirm-reset-btn"
+                onClick={handleConfirmReset}
+                disabled={resettingMatchday}
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {resettingMatchday ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Nulstiller...</span>
+                  </>
+                ) : (
+                  <span>Ja, Nulstil Nu</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: REDIGER/OPRET PROGRAMPUNKT ================= */}
+      {isScheduleModalOpen && (
+        <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border border-gray-100">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+              <h3 className="font-extrabold text-base text-[#081326] uppercase tracking-wide">
+                {editingScheduleItem ? 'Rediger Programpunkt' : 'Nyt Programpunkt'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsScheduleModalOpen(false)}
+                className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveScheduleSubmit} className="space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                    Tidspunkt
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={scheduleForm.time}
+                    onChange={(e) => setScheduleForm((prev) => ({ ...prev, time: e.target.value }))}
+                    placeholder="14:00"
+                    className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs font-mono font-bold text-[#081326]"
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                    Lokation / Venue
+                  </label>
+                  <input
+                    type="text"
+                    value={scheduleForm.venue}
+                    onChange={(e) => setScheduleForm((prev) => ({ ...prev, venue: e.target.value }))}
+                    placeholder="Ceres Arena Forplads"
+                    className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                  Aktivitet / Overskrift
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={scheduleForm.title}
+                  onChange={(e) => setScheduleForm((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder="F.eks. Fanzone & Børnehjørne åbner"
+                  className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs font-bold text-[#081326]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                  Beskrivelse (valgfri)
+                </label>
+                <textarea
+                  rows={2}
+                  value={scheduleForm.description}
+                  onChange={(e) => setScheduleForm((prev) => ({ ...prev, description: e.target.value }))}
+                  placeholder="Yderligere information til tilskuerne..."
+                  className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                  Status
+                </label>
+                <select
+                  value={scheduleForm.status}
+                  onChange={(e) =>
+                    setScheduleForm((prev) => ({
+                      ...prev,
+                      status: e.target.value as 'upcoming' | 'live' | 'completed',
+                    }))
+                  }
+                  className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs font-bold text-[#081326]"
+                >
+                  <option value="upcoming">Kommende</option>
+                  <option value="live">I gang nu (LIVE)</option>
+                  <option value="completed">Afsluttet</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsScheduleModalOpen(false)}
+                  className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs uppercase rounded-xl transition-colors cursor-pointer"
+                >
+                  Annuller
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-[#081326] hover:bg-black text-white font-black text-xs uppercase rounded-xl shadow-md transition-colors cursor-pointer"
+                >
+                  Gem Punkt
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: REDIGER/OPRET KONKURRENCE ================= */}
+      {isCompetitionModalOpen && (
+        <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border border-gray-100">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+              <h3 className="font-extrabold text-base text-[#081326] uppercase tracking-wide">
+                {editingCompetition ? 'Rediger Konkurrence' : 'Ny Konkurrence'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsCompetitionModalOpen(false)}
+                className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCompetitionSubmit} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                  Navn på konkurrence
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={competitionForm.name}
+                  onChange={(e) => setCompetitionForm((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="F.eks. Hårdeste Skud"
+                  className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs font-bold text-[#081326]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                  Beskrivelse
+                </label>
+                <textarea
+                  rows={2}
+                  value={competitionForm.description}
+                  onChange={(e) =>
+                    setCompetitionForm((prev) => ({ ...prev, description: e.target.value }))
+                  }
+                  placeholder="F.eks. Mål din skudstyrke i fanzonen foran Ceres Arena."
+                  className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                    Måleenhed
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={competitionForm.scoringUnit}
+                    onChange={(e) =>
+                      setCompetitionForm((prev) => ({ ...prev, scoringUnit: e.target.value }))
+                    }
+                    placeholder="km/t, point, mål..."
+                    className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs font-mono font-bold text-[#081326]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                    Sponsor
+                  </label>
+                  <input
+                    type="text"
+                    value={competitionForm.sponsor}
+                    onChange={(e) =>
+                      setCompetitionForm((prev) => ({ ...prev, sponsor: e.target.value }))
+                    }
+                    placeholder="F.eks. Sparekassen Danmark"
+                    className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326]"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-1 border-t border-gray-100">
+                <label className="flex items-center gap-2.5 text-xs text-[#081326] font-bold cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={competitionForm.higherIsBetter}
+                    onChange={(e) =>
+                      setCompetitionForm((prev) => ({ ...prev, higherIsBetter: e.target.checked }))
+                    }
+                    className="w-4 h-4 rounded text-blue-600"
+                  />
+                  <span>Højeste resultat vinder (f.eks. km/t eller point)</span>
+                </label>
+
+                <label className="flex items-center gap-2.5 text-xs text-[#081326] font-bold cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={competitionForm.active}
+                    onChange={(e) =>
+                      setCompetitionForm((prev) => ({ ...prev, active: e.target.checked }))
+                    }
+                    className="w-4 h-4 rounded text-blue-600"
+                  />
+                  <span>Aktiv (vises for tilskuere og i scanner)</span>
+                </label>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCompetitionModalOpen(false)}
+                  className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs uppercase rounded-xl transition-colors cursor-pointer"
+                >
+                  Annuller
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-[#081326] hover:bg-black text-white font-black text-xs uppercase rounded-xl shadow-md transition-colors cursor-pointer"
+                >
+                  Gem Konkurrence
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

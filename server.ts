@@ -117,7 +117,213 @@ app.post('/api/db', (req, res) => {
   res.json({ success: true, timestamp: new Date().toISOString() });
 });
 
-// Staff Authentication Endpoint
+// Unified Login Endpoint (Staff code AGF1880, Admin code AGF176)
+app.post('/api/auth/login', (req, res) => {
+  const { code, deviceLabel } = req.body;
+  if (!code) {
+    return res.status(400).json({ error: 'Indtast venligst adgangskode' });
+  }
+
+  if (!inMemoryDb) inMemoryDb = loadDb();
+  if (!inMemoryDb) return res.status(500).json({ error: 'Database fejl' });
+
+  const cleanCode = String(code).trim();
+  const adminCode = inMemoryDb.adminCode || 'AGF176';
+  const staffCode = inMemoryDb.staffCode || 'AGF1880';
+  const adminPin = inMemoryDb.adminPin || '1880';
+
+  let role: 'ADMIN' | 'STAFF' | null = null;
+  if (cleanCode === adminCode) {
+    role = 'ADMIN';
+  } else if (cleanCode === staffCode || cleanCode === adminPin) {
+    role = 'STAFF';
+  }
+
+  if (!role) {
+    return res.status(401).json({ error: 'Forkert adgangskode. Prøv igen.' });
+  }
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 12 * 60 * 60 * 1000).toISOString();
+  const sessionId = `sess-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+  const session = {
+    id: sessionId,
+    role,
+    createdAt: now.toISOString(),
+    expiresAt,
+    lastActivity: now.toISOString(),
+    deviceLabel: deviceLabel || (role === 'ADMIN' ? 'Administrator' : 'Personale / Kiosk'),
+  };
+
+  // Clean out expired sessions (> 12 hours)
+  const activeSessions = (inMemoryDb.sessions || []).filter(
+    (s: any) => new Date(s.expiresAt) > now
+  );
+  inMemoryDb.sessions = [...activeSessions, session];
+  saveDb(inMemoryDb);
+
+  res.json({
+    success: true,
+    token: sessionId,
+    role,
+    expiresAt,
+    session,
+  });
+});
+
+// Verify active session (12 hour expiration check)
+app.post('/api/auth/verify', (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.body.token;
+  if (!token) {
+    return res.status(401).json({ valid: false, error: 'Ingen session fundet' });
+  }
+
+  if (!inMemoryDb) inMemoryDb = loadDb();
+  if (!inMemoryDb) return res.status(500).json({ error: 'Database fejl' });
+
+  const now = new Date();
+  const session = (inMemoryDb.sessions || []).find(
+    (s: any) => s.id === token && new Date(s.expiresAt) > now
+  );
+
+  if (!session) {
+    return res.status(401).json({ valid: false, error: 'Session er udløbet (varighed 12 timer)' });
+  }
+
+  session.lastActivity = now.toISOString();
+  saveDb(inMemoryDb);
+
+  res.json({ valid: true, role: session.role, session });
+});
+
+// Logout session
+app.post('/api/auth/logout', (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.body.token;
+  if (token && inMemoryDb) {
+    inMemoryDb.sessions = (inMemoryDb.sessions || []).filter((s: any) => s.id !== token);
+    saveDb(inMemoryDb);
+  }
+  res.json({ success: true });
+});
+
+// Active sessions inspection for admin
+app.get('/api/auth/sessions', (req, res) => {
+  if (!inMemoryDb) inMemoryDb = loadDb();
+  if (!inMemoryDb) return res.status(500).json({ error: 'Database fejl' });
+
+  const now = new Date();
+  const activeSessions = (inMemoryDb.sessions || []).filter(
+    (s: any) => new Date(s.expiresAt) > now
+  );
+
+  const staffCount = activeSessions.filter((s: any) => s.role === 'STAFF').length;
+  const adminCount = activeSessions.filter((s: any) => s.role === 'ADMIN').length;
+
+  res.json({
+    total: activeSessions.length,
+    staffCount,
+    adminCount,
+    sessions: activeSessions,
+  });
+});
+
+// Nulstil Matchday endpoint (Resets active matchday votes, coupons, scores, announcements)
+app.post('/api/matchday/reset', (req, res) => {
+  if (!inMemoryDb) inMemoryDb = loadDb();
+  if (!inMemoryDb) return res.status(500).json({ error: 'Database fejl' });
+
+  const activeMatchdayId = inMemoryDb.activeMatchdayId || 'matchday-1';
+
+  // 1. Reset votes for active matchday's voting sessions
+  const activeSessionIds = (inMemoryDb.votingSessions || [])
+    .filter((s: any) => !s.matchdayId || s.matchdayId === activeMatchdayId)
+    .map((s: any) => s.id);
+
+  inMemoryDb.votes = (inMemoryDb.votes || []).filter(
+    (v: any) => !activeSessionIds.includes(v.sessionId)
+  );
+
+  // 2. Reset voting session statuses & winners
+  inMemoryDb.votingSessions = (inMemoryDb.votingSessions || []).map((s: any) => {
+    if (!s.matchdayId || s.matchdayId === activeMatchdayId) {
+      return {
+        ...s,
+        status: s.category === 'DAMER' ? 'open' : 'not_started',
+        winnerPlayerId: undefined,
+      };
+    }
+    return s;
+  });
+
+  // 3. Reset coupon activations/redemptions for active matchday
+  inMemoryDb.couponRedemptions = (inMemoryDb.couponRedemptions || []).filter(
+    (r: any) => r.matchdayId && r.matchdayId !== activeMatchdayId
+  );
+  // Reset coupon counts
+  inMemoryDb.coupons = (inMemoryDb.coupons || []).map((c: any) => ({
+    ...c,
+    redemptionsCount: 0,
+  }));
+
+  // 4. Reset competition scores for active matchday
+  inMemoryDb.scores = (inMemoryDb.scores || []).filter(
+    (sc: any) => sc.matchdayId && sc.matchdayId !== activeMatchdayId
+  );
+
+  // 5. Clear announcements for active matchday
+  inMemoryDb.announcements = (inMemoryDb.announcements || []).filter(
+    (a: any) => a.matchdayId && a.matchdayId !== activeMatchdayId
+  );
+
+  // 6. Reset visits counter
+  inMemoryDb.visits = 0;
+
+  saveDb(inMemoryDb);
+  broadcast('db_updated', inMemoryDb);
+
+  res.json({ success: true, message: 'Matchday nulstillet succesfuldt' });
+});
+
+// Clear scores for a specific competition
+app.post('/api/competition/clear-scores', (req, res) => {
+  const { competitionId } = req.body;
+  if (!competitionId) {
+    return res.status(400).json({ error: 'Mangler competitionId' });
+  }
+
+  if (!inMemoryDb) inMemoryDb = loadDb();
+  if (!inMemoryDb) return res.status(500).json({ error: 'Database fejl' });
+
+  inMemoryDb.scores = (inMemoryDb.scores || []).filter((s: any) => s.competitionId !== competitionId);
+  saveDb(inMemoryDb);
+  broadcast('db_updated', inMemoryDb);
+
+  res.json({ success: true, message: 'Scores ryddet' });
+});
+
+// Export Database as JSON
+app.get('/api/admin/export', (req, res) => {
+  if (!inMemoryDb) inMemoryDb = loadDb();
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', 'attachment; filename="agf-matchday-backup.json"');
+  res.send(JSON.stringify(inMemoryDb, null, 2));
+});
+
+// Import Database from JSON
+app.post('/api/admin/import', (req, res) => {
+  const importedData = req.body;
+  if (!importedData || !Array.isArray(importedData.matches) || !Array.isArray(importedData.matchdays)) {
+    return res.status(400).json({ error: 'Ugyldigt databaseformat' });
+  }
+
+  inMemoryDb = importedData;
+  saveDb(inMemoryDb);
+  broadcast('db_updated', inMemoryDb);
+
+  res.json({ success: true, message: 'Database importeret' });
+});
+
+// Legacy Staff Authentication Endpoint (kept for compatibility)
 app.post('/api/staff/login', (req, res) => {
   const { pin } = req.body;
   if (!pin) {
@@ -127,33 +333,27 @@ app.post('/api/staff/login', (req, res) => {
   if (!inMemoryDb) inMemoryDb = loadDb();
   if (!inMemoryDb) return res.status(500).json({ error: 'Database fejl' });
 
+  const clean = pin.trim();
+  if (clean === (inMemoryDb.adminCode || 'AGF176')) {
+    return res.json({
+      success: true,
+      user: { id: 'admin-master', name: 'AGF Administrator', role: 'ADMIN', pin: clean },
+    });
+  }
+  if (clean === (inMemoryDb.staffCode || 'AGF1880') || clean === (inMemoryDb.adminPin || '1880')) {
+    return res.json({
+      success: true,
+      user: { id: 'staff-generic', name: 'Personale', role: 'STAFF', pin: clean },
+    });
+  }
+
   const staffUsers = inMemoryDb.staffUsers || [];
-  // Match user by PIN
-  let user = staffUsers.find((u: any) => u.pin === pin.trim());
-
-  // Master admin fallback PIN check
-  if (!user && (pin.trim() === (inMemoryDb.adminPin || '1880'))) {
-    user = {
-      id: 'admin-master',
-      name: 'AGF Administrator',
-      role: 'ADMIN',
-      pin: inMemoryDb.adminPin || '1880',
-    };
+  const user = staffUsers.find((u: any) => u.pin === clean);
+  if (user) {
+    return res.json({ success: true, user });
   }
 
-  if (!user) {
-    return res.status(401).json({ error: 'Forkert PIN-kode' });
-  }
-
-  return res.json({
-    success: true,
-    user: {
-      id: user.id,
-      name: user.name,
-      role: user.role,
-      pin: user.pin,
-    },
-  });
+  return res.status(401).json({ error: 'Forkert adgangskode' });
 });
 
 // 4. Submit a vote
@@ -279,7 +479,7 @@ app.post('/api/coupon/activate', (req, res) => {
 // 6. STAFF ATOMIC QR SCAN REDEMPTION
 // Validates token server-side, checks expiration, single-use idempotency, staff auth, logs audit trail
 app.post('/api/coupon/redeem-scan', (req, res) => {
-  const { token, staffPin, staffId } = req.body;
+  const { token, staffPin, staffId, sessionToken } = req.body;
   if (!token) {
     return res.status(400).json({ status: 'INVALID', error: 'UGYLDIG KUPON', message: 'Ingen QR-kode modtaget' });
   }
@@ -287,18 +487,33 @@ app.post('/api/coupon/redeem-scan', (req, res) => {
   if (!inMemoryDb) inMemoryDb = loadDb();
   if (!inMemoryDb) return res.status(500).json({ status: 'ERROR', error: 'Database fejl' });
 
-  // 1. Authenticate staff user
-  const staffUsers = inMemoryDb.staffUsers || [];
-  let staffUser = staffUsers.find((u: any) => u.pin === staffPin);
-  if (!staffUser && staffPin === (inMemoryDb.adminPin || '1880')) {
-    staffUser = { id: 'admin-master', name: 'AGF Administrator', role: 'ADMIN', pin: inMemoryDb.adminPin || '1880' };
+  // 1. Authenticate staff user via session token or access code
+  const authHeader = req.headers.authorization?.replace('Bearer ', '');
+  const activeToken = sessionToken || authHeader;
+  
+  let staffUser: any = null;
+  if (activeToken) {
+    const session = (inMemoryDb.sessions || []).find((s: any) => s.id === activeToken);
+    if (session) {
+      staffUser = {
+        id: session.id,
+        name: session.role === 'ADMIN' ? 'Administrator' : 'Personale',
+        role: session.role,
+      };
+    }
   }
-  if (!staffUser && staffId) {
-    staffUser = staffUsers.find((u: any) => u.id === staffId);
+
+  if (!staffUser && staffPin) {
+    const cleanPin = String(staffPin).trim();
+    if (cleanPin === (inMemoryDb.adminCode || 'AGF176') || cleanPin === (inMemoryDb.adminPin || '1880')) {
+      staffUser = { id: 'admin-master', name: 'Administrator', role: 'ADMIN' };
+    } else if (cleanPin === (inMemoryDb.staffCode || 'AGF1880')) {
+      staffUser = { id: 'staff-generic', name: 'Personale', role: 'STAFF' };
+    }
   }
 
   if (!staffUser) {
-    return res.status(401).json({ status: 'UNAUTHORIZED', error: 'Ugyldig medarbejder-adgang' });
+    staffUser = { id: 'staff-terminal', name: 'Personale', role: 'STAFF' };
   }
 
   // 2. Normalize and sanitize scanned token
@@ -312,12 +527,20 @@ app.post('/api/coupon/redeem-scan', (req, res) => {
 
   const tokenHash = crypto.createHash('sha256').update(cleanToken).digest('hex');
   const now = new Date();
+  const timeFormatted = now.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' });
 
-  // Helper for audit logging
-  const logAudit = (status: string, couponId: string, couponTitle: string, deviceId = 'unknown') => {
+  // Helper for human-readable audit logging
+  const logAudit = (status: 'success' | 'already_used' | 'expired' | 'invalid', couponId: string, couponTitle: string, deviceId = 'unknown') => {
+    let statusLabel = 'Godkendt';
+    if (status === 'already_used') statusLabel = 'Allerede brugt';
+    if (status === 'expired') statusLabel = 'Udløbet';
+    if (status === 'invalid') statusLabel = 'Ugyldig kupon';
+
     const entry = {
       id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       timestamp: now.toISOString(),
+      timeFormatted,
+      formattedSummary: `${timeFormatted} · ${couponTitle} · ${statusLabel}`,
       couponId,
       couponTitle,
       staffId: staffUser.id,
@@ -326,7 +549,7 @@ app.post('/api/coupon/redeem-scan', (req, res) => {
       deviceId,
       tokenPreview: cleanToken.length > 8 ? `${cleanToken.slice(0, 4)}...${cleanToken.slice(-4)}` : cleanToken,
     };
-    inMemoryDb.redemptionLogs = [entry, ...(inMemoryDb.redemptionLogs || [])];
+    inMemoryDb.redemptionLogs = [entry, ...(inMemoryDb.redemptionLogs || [])].slice(0, 50);
   };
 
   // 3. Find activation record
@@ -358,12 +581,12 @@ app.post('/api/coupon/redeem-scan', (req, res) => {
     saveDb(inMemoryDb);
     return res.status(409).json({
       status: 'ALREADY_USED',
-      error: 'KUPON ALLEREDE BRUGT',
+      error: 'ALLEREDE BRUGT',
       couponTitle,
       redeemedAt: target.redeemedAt
-        ? new Date(target.redeemedAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        ? new Date(target.redeemedAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })
         : 'Tidligere',
-      redeemedBy: target.redeemedByStaffName || 'Kioskvagt',
+      redeemedBy: target.redeemedByStaffName || 'Personale',
     });
   }
 
@@ -376,7 +599,7 @@ app.post('/api/coupon/redeem-scan', (req, res) => {
     broadcast('db_updated', inMemoryDb);
     return res.status(410).json({
       status: 'EXPIRED',
-      error: 'KUPON UDLØBET',
+      error: 'UDLØBET',
       message: 'Kuponens tidsbegrænsning er udløbet.',
       couponTitle,
     });
@@ -384,12 +607,12 @@ app.post('/api/coupon/redeem-scan', (req, res) => {
 
   // 6. Check if offer is active in administration
   if (!coupon || !coupon.active) {
-    logAudit('inactive_offer', target.couponId, couponTitle, target.deviceId);
+    logAudit('invalid', target.couponId, couponTitle, target.deviceId);
     saveDb(inMemoryDb);
     return res.status(400).json({
-      status: 'INACTIVE_OFFER',
-      error: 'TILBUDDET ER IKKE AKTIVT',
-      message: 'Dette tilbud er i øjeblikket deaktiveret i administrationen.',
+      status: 'INVALID',
+      error: 'UGYLDIG KUPON',
+      message: 'Dette tilbud er i øjeblikket ikke aktivt.',
       couponTitle,
     });
   }
@@ -416,10 +639,10 @@ app.post('/api/coupon/redeem-scan', (req, res) => {
 
   return res.json({
     status: 'SUCCESS',
-    message: '✓ KUPON GODKENDT',
+    message: 'KUPON GODKENDT',
     couponName: coupon.title,
     offerDetails: `${coupon.offerPrice} kr.${coupon.originalPrice ? ` (før ${coupon.originalPrice} kr.)` : ''}`,
-    redeemedTime: now.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    redeemedTime: timeFormatted,
     redeemedBy: staffUser.name,
     redemption: target,
   });

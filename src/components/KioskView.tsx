@@ -1,18 +1,27 @@
 import React, { useState } from 'react';
 import { Product } from '../types.ts';
-import { Beer, Search, Coffee, Utensils, Sparkles, AlertTriangle } from 'lucide-react';
+import { Beer, Search, Coffee, Utensils, Sparkles, AlertTriangle, Copy, Check } from 'lucide-react';
 
 interface KioskViewProps {
   products: Product[];
+  mobilePayNumber?: string;
 }
 
-export const KioskView: React.FC<KioskViewProps> = ({ products }) => {
+export const KioskView: React.FC<KioskViewProps> = ({ products, mobilePayNumber }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Alle');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [copied, setCopied] = useState(false);
 
   // Extract categories dynamically
   const uniqueCategories = Array.from(new Set(products.map((p) => p.category))) as string[];
   const categories: string[] = ['Alle', ...uniqueCategories];
+
+  const handleCopyMobilePay = () => {
+    if (!mobilePayNumber) return;
+    navigator.clipboard.writeText(mobilePayNumber.replace(/\s+/g, ''));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   // Filter products
   const filteredProducts = products.filter((item) => {
@@ -25,7 +34,7 @@ export const KioskView: React.FC<KioskViewProps> = ({ products }) => {
   return (
     <div className="pb-16 pt-2">
       {/* Header banner */}
-      <div className="bg-[#081326] text-white rounded-2xl p-5 mb-4 shadow-sm border border-white/10">
+      <div className="bg-[#081326] text-white rounded-2xl p-5 mb-3 shadow-sm border border-white/10">
         <div className="flex items-center gap-2 text-[10px] font-black text-gray-300 uppercase tracking-widest mb-1">
           <Beer className="w-3.5 h-3.5 text-amber-400" />
           <span>Ceres Arena Kiosk & Bar</span>
@@ -34,9 +43,45 @@ export const KioskView: React.FC<KioskViewProps> = ({ products }) => {
           Kiosk & Priser
         </h2>
         <p className="text-xs text-gray-300 mt-0.5">
-          Se det fulde sortiment og priser i hallens kiosker. Betal med MobilePay eller kort.
+          Se det fulde sortiment og priser i hallens kiosker.
         </p>
       </div>
+
+      {/* MobilePay Banner (Only shown if configured) */}
+      {mobilePayNumber && (
+        <div className="mb-4 p-3.5 sm:p-4 rounded-2xl bg-linear-to-r from-blue-600 to-indigo-700 text-white shadow-sm flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <span className="text-[10px] font-black uppercase tracking-wider text-blue-200 block">
+              Hurtig betaling
+            </span>
+            <div className="text-sm sm:text-base font-black tracking-tight flex items-center gap-1.5 flex-wrap">
+              <span>Betal med MobilePay til:</span>
+              <span className="font-mono bg-white/20 px-2 py-0.5 rounded-lg text-white">
+                {mobilePayNumber}
+              </span>
+            </div>
+          </div>
+
+          <button
+            id="copy-mobilepay-btn"
+            onClick={handleCopyMobilePay}
+            className="shrink-0 px-3 py-2 rounded-xl bg-white text-blue-900 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-xs hover:bg-blue-50 active:scale-95 transition-all"
+            aria-label="Kopier MobilePay nummer"
+          >
+            {copied ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Kopieret</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5 text-blue-700" />
+                <span>Kopier</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Search Input */}
       <div className="relative mb-3">

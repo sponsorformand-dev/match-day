@@ -26,9 +26,19 @@ interface StaffPortalViewProps {
 type StaffTab = 'scanner' | 'scores' | 'admin';
 
 export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ db, onExitToPublic }) => {
-  const [currentUser, setCurrentUser] = useState<StaffUser | null>(() =>
-    dataService.getCurrentStaffUser()
-  );
+  const [currentUser, setCurrentUser] = useState<StaffUser | null>(() => {
+    const session = dataService.getCurrentSession();
+    if (session) {
+      return {
+        id: session.id,
+        name: session.role === 'ADMIN' ? 'Administrator' : 'Personale',
+        role: session.role,
+        pin: '',
+        createdAt: new Date().toISOString(),
+      };
+    }
+    return dataService.getCurrentStaffUser();
+  });
   const [pinInput, setPinInput] = useState<string>('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<StaffTab>('scanner');
@@ -54,23 +64,29 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ db, onExitToPu
     }
   }, [activeCompetitions, selectedCompId]);
 
-  // Handle PIN Login
+  // Handle Login
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pinInput.trim()) return;
 
     setAuthError(null);
-    const res = await dataService.staffLogin(pinInput.trim());
-    if (res.success && res.user) {
-      setCurrentUser(res.user);
+    const res = await dataService.login(pinInput.trim());
+    if (res.success && res.role) {
+      setCurrentUser({
+        id: 'sess-' + Date.now(),
+        name: res.role === 'ADMIN' ? 'Administrator' : 'Personale',
+        role: res.role,
+        pin: '',
+        createdAt: new Date().toISOString(),
+      });
       setPinInput('');
     } else {
-      setAuthError(res.error || 'Forkert adgangskode. Prøv standard 1880.');
+      setAuthError(res.error || 'Forkert adgangskode');
     }
   };
 
   const handleLogout = () => {
-    dataService.logoutStaff();
+    dataService.logout();
     setCurrentUser(null);
   };
 
@@ -139,21 +155,17 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ db, onExitToPu
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">
-                Indtast Personale-PIN
+                Indtast adgangskode
               </label>
               <input
                 id="staff-portal-pin"
                 type="password"
-                inputMode="numeric"
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value)}
                 placeholder="••••"
-                className="w-full px-4 py-3.5 rounded-xl border border-gray-300 text-center font-mono text-2xl tracking-widest focus:outline-hidden focus:border-[#081326] focus:ring-2 focus:ring-[#081326]/20 transition-all font-bold"
+                className="w-full px-4 py-3.5 rounded-xl border border-gray-300 text-center font-mono text-xl tracking-widest focus:outline-hidden focus:border-[#081326] focus:ring-2 focus:ring-[#081326]/20 transition-all font-bold"
                 autoFocus
               />
-              <p className="text-[10px] text-gray-400 mt-1 text-center font-medium">
-                Standard administrator-PIN: 1880
-              </p>
             </div>
 
             {authError && (

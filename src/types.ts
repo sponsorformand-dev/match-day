@@ -1,12 +1,12 @@
-export type ActiveTab = 'hjem' | 'program' | 'stem' | 'kiosk' | 'mere' | 'tilbud' | 'konkurrencer' | 'tilmelding' | 'partnere' | 'del-matchday' | 'staff';
+export type ActiveTab = 'hjem' | 'program' | 'stem' | 'kiosk' | 'mere' | 'tilbud' | 'konkurrencer' | 'tilmelding' | 'partnere' | 'del-matchday' | 'scanner';
 
 export interface FeaturedHero {
   enabled: boolean;
-  badge: string; // e.g. "LIVE NU", "PAUSETILBUD", "VELKOMMEN"
-  title: string; // e.g. "STEM PÅ KAMPENS SPILLER"
+  badge: string; // e.g. "PAUSETILBUD", "KONKURRENCE", "VELKOMMEN"
+  title: string;
   subtitle?: string;
   actionText: string;
-  actionTarget: 'stem' | 'program' | 'kiosk' | 'tilbud' | 'konkurrencer' | 'tilmelding' | 'partnere' | 'del-matchday';
+  actionTarget: 'program' | 'kiosk' | 'tilbud' | 'konkurrencer' | 'tilmelding' | 'partnere' | 'del-matchday';
 }
 
 export interface Matchday {
@@ -15,12 +15,15 @@ export interface Matchday {
   date: string;
   venue: string;
   active: boolean;
-  featuredHero: FeaturedHero;
+  featuredHero?: FeaturedHero;
   looadUrl: string;
   looadTitle?: string;
   looadDescription?: string;
   welcomeMessage?: string;
   shareUrl?: string;
+  kampdagssponsorId?: string;
+  kampensSpillerSponsorId?: string;
+  mobilePayNumber?: string;
   createdAt: string;
 }
 
@@ -34,23 +37,26 @@ export interface Match {
   league: string;
   homeTeam: string;
   awayTeam: string;
+  awayLogo?: string;
   time: string;
   status: MatchStatus;
-  homeScore?: number;
-  awayScore?: number;
+  venue?: string;
   partner?: string;
   liveMatchUrl?: string;
+  homeScore?: number;
+  awayScore?: number;
 }
 
 export type ScheduleStatus = 'upcoming' | 'live' | 'completed';
 
 export interface ScheduleItem {
   id: string;
-  matchdayId: string;
+  matchdayId?: string;
   time: string;
   title: string;
   description?: string;
   location?: string;
+  venue?: string;
   icon?: string;
   status: ScheduleStatus;
   order: number;
@@ -126,8 +132,9 @@ export interface Competition {
   description: string;
   scoringUnit: string;
   higherScoreWins: boolean;
+  higherIsBetter?: boolean;
   active: boolean;
-  maxLeaderboardEntries: number;
+  maxLeaderboardEntries?: number;
   sponsor?: string;
 }
 
@@ -141,7 +148,7 @@ export interface Score {
   isNewRecord?: boolean;
 }
 
-export type VotingSessionStatus = 'pending' | 'open' | 'closed';
+export type VotingSessionStatus = 'pending' | 'not_started' | 'open' | 'closed';
 
 export interface VotingSession {
   id: string;
@@ -160,7 +167,8 @@ export interface Player {
   sessionId: string;
   name: string;
   number: number;
-  position: string;
+  position?: string;
+  team?: 'HOME' | 'AWAY';
   photoUrl?: string;
 }
 
@@ -210,6 +218,15 @@ export interface Announcement {
   createdAt: string;
 }
 
+export interface AuthSession {
+  id: string;
+  role: StaffRole;
+  createdAt: string;
+  expiresAt: string;
+  lastActivity: string;
+  deviceLabel: string;
+}
+
 export interface MatchdayDatabase {
   matchdays: Matchday[];
   activeMatchdayId: string;
@@ -227,6 +244,10 @@ export interface MatchdayDatabase {
   announcements: Announcement[];
   visits: number;
   adminPin: string;
+  staffCode?: string;
+  adminCode?: string;
+  sessions?: AuthSession[];
+  mobilePayNumber?: string;
   staffUsers?: StaffUser[];
   redemptionLogs?: RedemptionLogEntry[];
   canonicalAppUrl?: string;

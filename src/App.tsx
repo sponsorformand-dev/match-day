@@ -19,11 +19,15 @@ import { ShareMatchdayView } from './components/ShareMatchdayView.tsx';
 import { StaffScannerView } from './components/StaffScannerView.tsx';
 import { AdminDashboard } from './components/AdminDashboard.tsx';
 import { DesktopAdminCompanion } from './components/DesktopAdminCompanion.tsx';
+import { UnifiedLoginModal } from './components/UnifiedLoginModal.tsx';
+import { StaffRole } from './types.ts';
 
 export default function App() {
   const [db, setDb] = useState<MatchdayDatabase>(() => dataService.getDatabase());
   const [activeTab, setActiveTab] = useState<ActiveTab>('hjem');
   const [isMoreOpen, setIsMoreOpen] = useState<boolean>(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+  const [session, setSession] = useState(() => dataService.getCurrentSession());
   const [isAdminOpen, setIsAdminOpen] = useState<boolean>(() => {
     return (
       window.location.search.includes('admin') ||
@@ -32,6 +36,17 @@ export default function App() {
     );
   });
   const [voteCategory, setVoteCategory] = useState<'DAMER' | 'HERRER'>('DAMER');
+
+  // Verify active 12-hour session on launch
+  useEffect(() => {
+    dataService.verifySession().then((valid) => {
+      if (valid) {
+        setSession(dataService.getCurrentSession());
+      } else {
+        setSession(null);
+      }
+    });
+  }, []);
 
   // Subscribe to real-time updates and record visit on launch
   useEffect(() => {
@@ -93,7 +108,10 @@ export default function App() {
           {/* Header */}
           <Header
             matchday={activeMatchday}
+            session={session}
+            onOpenLogin={() => setIsLoginModalOpen(true)}
             onOpenAdmin={() => setIsAdminOpen(true)}
+            onOpenScanner={() => handleTabChange('scanner')}
             isAdminActive={isAdminOpen}
           />
 
@@ -202,6 +220,28 @@ export default function App() {
         onClose={() => setIsMoreOpen(false)}
         onSelectTab={handleTabChange}
         hasCoupons={hasActiveOffers}
+        session={session}
+        onOpenLogin={() => setIsLoginModalOpen(true)}
+        onOpenAdmin={() => setIsAdminOpen(true)}
+        onLogout={() => {
+          dataService.logout();
+          setSession(null);
+        }}
+      />
+
+      {/* Unified Login Modal for Staff & Admin */}
+      <UnifiedLoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onLoginSuccess={(role: StaffRole) => {
+          const updatedSession = dataService.getCurrentSession();
+          setSession(updatedSession);
+          if (role === 'ADMIN') {
+            setIsAdminOpen(true);
+          } else if (role === 'STAFF') {
+            handleTabChange('scanner');
+          }
+        }}
       />
 
       {/* Full Admin Dashboard Modal Overlay */}

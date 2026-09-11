@@ -1,7 +1,11 @@
 import { MatchdayDatabase } from './types.ts';
 
 export const initialDatabase: MatchdayDatabase = {
-  adminPin: '1880', // Foundation year of AGF
+  adminPin: '1880', // Legacy fallback
+  staffCode: 'AGF1880',
+  adminCode: 'AGF176',
+  sessions: [],
+  mobilePayNumber: '1880',
   visits: 142,
   activeMatchdayId: 'matchday-1',
   matchdays: [
@@ -9,27 +13,28 @@ export const initialDatabase: MatchdayDatabase = {
       id: 'matchday-1',
       title: 'AGF Matchday – Dobbeltbrag i Ceres Arena',
       date: 'Lørdag d. 10. oktober 2026',
-      venue: 'Ceres Arena, Hal 1',
+      venue: 'Ceres Arena',
       active: true,
       featuredHero: {
         enabled: true,
-        badge: 'LIVE NU',
-        title: 'STEM PÅ KAMPENS SPILLER',
-        subtitle: 'Afstemningen til damekampen er åben netop nu!',
-        actionText: 'AFGIV DIN STEMME',
-        actionTarget: 'stem',
+        badge: 'PAUSETILBUD',
+        title: 'DAGENS PAUSETILBUD',
+        subtitle: '2 fadøl for 80 kr. i arenaens kiosker',
+        actionText: 'SE TILBUD',
+        actionTarget: 'tilbud',
       },
       looadUrl: 'https://looad.dk/pages/klub-agf-haandbold',
       looadTitle: 'STØT AGF HÅNDBOLD MED LOOAD',
       looadDescription: 'Skift elselskab til Looad og støt samtidig AGF Håndbold.',
       welcomeMessage: 'Velkommen til AGF Håndbold i Ceres Arena. Støt de hvide!',
+      mobilePayNumber: '1880',
       createdAt: new Date().toISOString(),
     },
     {
       id: 'matchday-2',
       title: 'AGF Håndbold – Lokalderby mod Skanderborg',
       date: 'Søndag d. 25. oktober 2026',
-      venue: 'Ceres Arena, Hal 1',
+      venue: 'Ceres Arena',
       active: false,
       featuredHero: {
         enabled: true,
@@ -43,6 +48,7 @@ export const initialDatabase: MatchdayDatabase = {
       looadTitle: 'STØT AGF HÅNDBOLD MED LOOAD',
       looadDescription: 'Skift elselskab til Looad og støt samtidig AGF Håndbold.',
       welcomeMessage: 'Gør dig klar til det store lokalopgør!',
+      mobilePayNumber: '1880',
       createdAt: new Date().toISOString(),
     }
   ],
@@ -53,12 +59,11 @@ export const initialDatabase: MatchdayDatabase = {
       category: 'DAMER',
       league: '1. Division Damer',
       homeTeam: 'AGF Håndbold',
-      awayTeam: 'Horsens HK',
-      time: '12:45',
-      status: 'live',
-      homeScore: 16,
-      awayScore: 14,
-      partner: 'Arbejdernes Landsbank',
+      awayTeam: 'Silkeborg-Voel',
+      time: '13:00',
+      venue: 'Ceres Arena',
+      status: 'upcoming',
+      liveMatchUrl: 'https://tophaandbold.dk',
     },
     {
       id: 'match-2',
@@ -68,10 +73,9 @@ export const initialDatabase: MatchdayDatabase = {
       homeTeam: 'AGF Håndbold',
       awayTeam: 'Skanderborg AGF',
       time: '15:15',
+      venue: 'Ceres Arena',
       status: 'upcoming',
-      homeScore: 0,
-      awayScore: 0,
-      partner: 'Ceres Bryggerierne',
+      liveMatchUrl: 'https://tophaandbold.dk',
     }
   ],
   schedule: [
@@ -337,37 +341,45 @@ export const initialDatabase: MatchdayDatabase = {
       id: 'vote-damer',
       matchdayId: 'matchday-1',
       category: 'DAMER',
-      title: 'Kampens Spiller – Damer (AGF vs. Horsens HK)',
+      title: 'Kampens Spiller – Damer',
       status: 'open',
-      sponsor: 'Arbejdernes Landsbank',
-      publicResultsEnabled: false,
     },
     {
       id: 'vote-herrer',
       matchdayId: 'matchday-1',
       category: 'HERRER',
-      title: 'Kampens Spiller – Herrer (AGF vs. Skanderborg AGF)',
-      status: 'pending',
-      sponsor: 'Ceres Bryggerierne',
-      publicResultsEnabled: false,
+      title: 'Kampens Spiller – Herrer',
+      status: 'not_started',
     }
   ],
   players: [
-    // Damer spillere
-    { id: 'p-1', sessionId: 'vote-damer', name: 'Laura Nielsen', number: 1, position: 'Målvogter' },
-    { id: 'p-2', sessionId: 'vote-damer', name: 'Sofie Møller', number: 7, position: 'Playmaker' },
-    { id: 'p-3', sessionId: 'vote-damer', name: 'Emma Jensen', number: 10, position: 'Venstre Fløj' },
-    { id: 'p-4', sessionId: 'vote-damer', name: 'Mathilde Holm', number: 14, position: 'Stregspiller' },
-    { id: 'p-5', sessionId: 'vote-damer', name: 'Julie Kristensen', number: 22, position: 'Højre Back' },
-    { id: 'p-6', sessionId: 'vote-damer', name: 'Amalie Winther', number: 18, position: 'Forsvarsgeneral' },
+    // Damer - AGF Håndbold (HOME)
+    { id: 'p-1', sessionId: 'vote-damer', name: 'Laura Nielsen', number: 1, position: 'Målvogter', team: 'HOME' },
+    { id: 'p-2', sessionId: 'vote-damer', name: 'Sofie Møller', number: 7, position: 'Playmaker', team: 'HOME' },
+    { id: 'p-3', sessionId: 'vote-damer', name: 'Emma Jensen', number: 10, position: 'Venstre Fløj', team: 'HOME' },
+    { id: 'p-4', sessionId: 'vote-damer', name: 'Mathilde Holm', number: 14, position: 'Stregspiller', team: 'HOME' },
+    { id: 'p-5', sessionId: 'vote-damer', name: 'Julie Kristensen', number: 22, position: 'Højre Back', team: 'HOME' },
+    { id: 'p-6', sessionId: 'vote-damer', name: 'Amalie Winther', number: 18, position: 'Forsvar', team: 'HOME' },
 
-    // Herrer spillere
-    { id: 'p-7', sessionId: 'vote-herrer', name: 'Mikkel Rasmussen', number: 1, position: 'Målvogter' },
-    { id: 'p-8', sessionId: 'vote-herrer', name: 'Frederik Bruun', number: 4, position: 'Playmaker' },
-    { id: 'p-9', sessionId: 'vote-herrer', name: 'Mads Svendsen', number: 9, position: 'Stregspiller' },
-    { id: 'p-10', sessionId: 'vote-herrer', name: 'Christian Lind', number: 15, position: 'Venstre Back' },
-    { id: 'p-11', sessionId: 'vote-herrer', name: 'Magnus Toft', number: 21, position: 'Højre Fløj' },
-    { id: 'p-12', sessionId: 'vote-herrer', name: 'Kasper Broe', number: 11, position: 'Højre Back' }
+    // Damer - Udehold (AWAY)
+    { id: 'p-d-away-1', sessionId: 'vote-damer', name: 'Andrea West Bendtsen', number: 8, position: 'Venstre Back', team: 'AWAY' },
+    { id: 'p-d-away-2', sessionId: 'vote-damer', name: 'Maja Munch Laursen', number: 12, position: 'Målvogter', team: 'AWAY' },
+    { id: 'p-d-away-3', sessionId: 'vote-damer', name: 'Thea Rasmussen', number: 17, position: 'Playmaker', team: 'AWAY' },
+    { id: 'p-d-away-4', sessionId: 'vote-damer', name: 'Karen Klokker', number: 24, position: 'Stregspiller', team: 'AWAY' },
+
+    // Herrer - AGF Håndbold (HOME)
+    { id: 'p-7', sessionId: 'vote-herrer', name: 'Mikkel Rasmussen', number: 1, position: 'Målvogter', team: 'HOME' },
+    { id: 'p-8', sessionId: 'vote-herrer', name: 'Frederik Bruun', number: 4, position: 'Playmaker', team: 'HOME' },
+    { id: 'p-9', sessionId: 'vote-herrer', name: 'Mads Svendsen', number: 9, position: 'Stregspiller', team: 'HOME' },
+    { id: 'p-10', sessionId: 'vote-herrer', name: 'Christian Lind', number: 15, position: 'Venstre Back', team: 'HOME' },
+    { id: 'p-11', sessionId: 'vote-herrer', name: 'Magnus Toft', number: 21, position: 'Højre Fløj', team: 'HOME' },
+    { id: 'p-12', sessionId: 'vote-herrer', name: 'Kasper Broe', number: 11, position: 'Højre Back', team: 'HOME' },
+
+    // Herrer - Udehold (AWAY)
+    { id: 'p-h-away-1', sessionId: 'vote-herrer', name: 'Kristoffer Laursen', number: 1, position: 'Målvogter', team: 'AWAY' },
+    { id: 'p-h-away-2', sessionId: 'vote-herrer', name: 'Morten Balling', number: 5, position: 'Venstre Fløj', team: 'AWAY' },
+    { id: 'p-h-away-3', sessionId: 'vote-herrer', name: 'Lars Skaarup', number: 7, position: 'Højre Fløj', team: 'AWAY' },
+    { id: 'p-h-away-4', sessionId: 'vote-herrer', name: 'Emil Lærke', number: 13, position: 'Venstre Back', team: 'AWAY' },
   ],
   votes: [
     { id: 'v-1', sessionId: 'vote-damer', playerId: 'p-2', deviceId: 'dev-seed-1', timestamp: '12:50' },

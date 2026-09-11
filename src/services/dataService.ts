@@ -510,6 +510,37 @@ export const dataService = {
     await pushToServer(cachedDb);
   },
 
+  async clearCompetitionScores(competitionId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const res = await fetch('/api/competition/clear-scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ competitionId }),
+      });
+      const data = await res.json();
+      await syncFromServer();
+      return data;
+    } catch (e: any) {
+      cachedDb.scores = cachedDb.scores.filter(s => s.competitionId !== competitionId);
+      notifyListeners();
+      return { success: true };
+    }
+  },
+
+  async resetMatchday(): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const res = await fetch('/api/matchday/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      await syncFromServer();
+      return data;
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Kunne ikke nulstille matchday' };
+    }
+  },
+
   async addScore(competitionId: string, participantName: string, score: number): Promise<{ success: boolean; isNewRecord?: boolean; error?: string }> {
     try {
       const res = await fetch('/api/score', {
@@ -693,8 +724,159 @@ export const dataService = {
     await pushToServer(cachedDb);
   },
 
-  // Staff Authentication & Session
+  // Unified Staff & Admin Authentication & Session Management (12-hour duration)
+  getCurrentSession(): { id: string; role: 'ADMIN' | 'STAFF'; expiresAt: string; deviceLabel?: string } | null {
+    try {
+      const raw = localStorage.getItem('agf_auth_session_12h') || sessionStorage.getItem('agf_auth_session_12h');
+      if (raw) {
+        const session = JSON.parse(raw);
+        if (new Date(session.expiresAt) > new Date()) {
+          return session;
+        } else {
+          // Expired
+          localStorage.removeItem('agf_auth_session_12h');
+          sessionStorage.removeItem('agf_auth_session_12h');
+        }
+      }
+    } catch {
+      // Ignore
+    }
+    return null;
+  },
+
+  setSession(session: { id: string; role: 'ADMIN' | 'STAFF'; expiresAt: string; deviceLabel?: string } | null) {
+    try {
+      if (session) {
+        localStorage.setItem('agf_auth_session_12h', JSON.stringify(session));
+        sessionStorage.setItem('agf_auth_session_12h', JSON.stringify(session));
+      } else {
+        localStorage.removeItem('agf_auth_session_12h');
+        sessionStorage.removeItem('agf_auth_session_12h');
+      }
+    } catch {
+      // Ignore
+    }
+  },
+
+  async login(code: string, deviceLabel?: string): Promise<{ success: boolean; role?: 'ADMIN' | 'STAFF'; error?: string }> {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code.trim(), deviceLabel }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.error || 'Forkert adgangskode' };
+      }
+      const sessionObj = {
+        id: data.token,
+        role: data.role as 'ADMIN' | 'STAFF',
+        expiresAt: data.expiresAt,
+        deviceLabel: data.session?.deviceLabel,
+      };
+      this.setSession(sessionObj);
+      // Also maintain legacy staff user for backwards compatibility
+      this.setStaffSession({
+        id: sessionObj.id,
+        name: sessionObj.role === 'ADMIN' ? 'Administrator' : 'Personale',
+        role: sessionObj.role,
+        pin: code.trim(),
+        createdAt: new Date().toISOString(),
+      });
+      return { success: true, role: data.role };
+    } catch {
+      // Local fallback check if offline
+      const clean = code.trim();
+      const adminCode = cachedDb.adminCode || 'AGF176';
+      const staffCode = cachedDb.staffCode || 'AGF1880';
+      const adminPin = cachedDb.adminPin || '1880';
+
+      let role: 'ADMIN' | 'STAFF' | null = null;
+      if (clean === adminCode) role = 'ADMIN';
+      else if (clean === staffCode || clean === adminPin) role = 'STAFF';
+
+      if (role) {
+        const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+        const sessionObj = {
+          id: `local-sess-${Date.now()}`,
+          role,
+          expiresAt,
+          deviceLabel: deviceLabel || (role === 'ADMIN' ? 'Administrator' : 'Personale'),
+        };
+        this.setSession(sessionObj);
+        return { success: true, role };
+      }
+      return { success: false, error: 'Forkert adgangskode. Prøv igen.' };
+    }
+  },
+
+  async logout(): Promise<void> {
+    const session = this.getCurrentSession();
+    if (session) {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: session.id }),
+        });
+      } catch {
+        // Ignore
+      }
+    }
+    this.setSession(null);
+    this.setStaffSession(null);
+  },
+
+  // Access Codes Management
+  async updateAccessCodes(staffCode: string, adminCode: string) {
+    cachedDb.staffCode = staffCode.trim();
+    cachedDb.adminCode = adminCode.trim();
+    notifyListeners();
+    await pushToServer(cachedDb);
+  },
+
+  // Export full database as JSON
+  exportDatabaseJson(): string {
+    return JSON.stringify(cachedDb, null, 2);
+  },
+
+  // Import full database from JSON
+  async importDatabaseJson(jsonData: any): Promise<boolean> {
+    if (!jsonData || !Array.isArray(jsonData.matches) || !Array.isArray(jsonData.matchdays)) {
+      throw new Error('Ugyldigt databaseformat');
+    }
+    try {
+      const res = await fetch('/api/admin/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(jsonData),
+      });
+      if (res.ok) {
+        await syncFromServer();
+        return true;
+      }
+    } catch {
+      cachedDb = jsonData;
+      notifyListeners();
+      await pushToServer(cachedDb);
+      return true;
+    }
+    return false;
+  },
+
+  // Staff Authentication & Session (Legacy wrappers)
   getCurrentStaffUser(): StaffUser | null {
+    const session = this.getCurrentSession();
+    if (session) {
+      return {
+        id: session.id,
+        name: session.role === 'ADMIN' ? 'Administrator' : 'Personale',
+        role: session.role,
+        pin: '',
+        createdAt: new Date().toISOString(),
+      };
+    }
     try {
       const raw = sessionStorage.getItem(STAFF_SESSION_KEY) || localStorage.getItem(STAFF_SESSION_KEY);
       if (raw) return JSON.parse(raw);
@@ -719,43 +901,22 @@ export const dataService = {
   },
 
   async staffLogin(pin: string): Promise<{ success: boolean; user?: StaffUser; error?: string }> {
-    try {
-      const res = await fetch('/api/staff/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        return { success: false, error: data.error || 'Ugyldig PIN-kode' };
-      }
-      this.setStaffSession(data.user);
-      return { success: true, user: data.user };
-    } catch (e) {
-      // Local fallback check
-      const staffList = cachedDb.staffUsers || [];
-      const match = staffList.find(u => u.pin === pin.trim());
-      if (match) {
-        this.setStaffSession(match);
-        return { success: true, user: match };
-      }
-      if (pin.trim() === (cachedDb.adminPin || '1880')) {
-        const adminUser: StaffUser = {
-          id: 'admin-master',
-          name: 'AGF Administrator',
-          role: 'ADMIN',
-          pin: cachedDb.adminPin || '1880',
-          createdAt: new Date().toISOString(),
-        };
-        this.setStaffSession(adminUser);
-        return { success: true, user: adminUser };
-      }
-      return { success: false, error: 'Forkert PIN-kode' };
+    const res = await this.login(pin);
+    if (res.success && res.role) {
+      const u: StaffUser = {
+        id: 'sess-' + Date.now(),
+        name: res.role === 'ADMIN' ? 'Administrator' : 'Personale',
+        role: res.role,
+        pin,
+        createdAt: new Date().toISOString(),
+      };
+      return { success: true, user: u };
     }
+    return { success: false, error: res.error || 'Forkert adgangskode' };
   },
 
   logoutStaff() {
-    this.setStaffSession(null);
+    this.logout();
   },
 
   // Staff User Management
@@ -780,9 +941,10 @@ export const dataService = {
 
   // Secure Staff QR Scanner Redemption (Server-side Atomic)
   async redeemScan(token: string, staffPin?: string, staffId?: string): Promise<ScanRedeemResult> {
+    const session = this.getCurrentSession();
     const currentStaff = this.getCurrentStaffUser();
     const pin = staffPin || currentStaff?.pin || cachedDb.adminPin || '1880';
-    const id = staffId || currentStaff?.id || 'staff-scanner';
+    const id = staffId || currentStaff?.id || session?.id || 'staff-scanner';
 
     try {
       const res = await fetch('/api/coupon/redeem-scan', {
@@ -792,6 +954,7 @@ export const dataService = {
           token: token.trim(),
           staffPin: pin,
           staffId: id,
+          sessionToken: session?.id,
         }),
       });
       const data = await res.json();
@@ -812,11 +975,11 @@ export const dataService = {
       if (target.redeemed || target.status === 'redeemed') {
         return {
           status: 'ALREADY_USED',
-          error: 'KUPON ALLEREDE BRUGT',
+          error: 'ALLEREDE BRUGT',
           redeemedAt: target.redeemedAt
             ? new Date(target.redeemedAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })
             : undefined,
-          redeemedBy: target.redeemedByStaffName || 'Tidligere scannet',
+          redeemedBy: target.redeemedByStaffName || 'Personale',
         };
       }
 
@@ -824,20 +987,20 @@ export const dataService = {
       if (now > new Date(target.expiresAt)) {
         target.status = 'expired';
         notifyListeners();
-        return { status: 'EXPIRED', error: 'KUPON UDLØBET' };
+        return { status: 'EXPIRED', error: 'UDLØBET' };
       }
 
       const coupon = cachedDb.coupons.find(c => c.id === target.couponId);
       if (!coupon || !coupon.active) {
-        return { status: 'INACTIVE_OFFER', error: 'TILBUDDET ER IKKE AKTIVT' };
+        return { status: 'INVALID', error: 'UGYLDIG KUPON' };
       }
 
       // Mark redeemed
       target.redeemed = true;
       target.status = 'redeemed';
       target.redeemedAt = now.toISOString();
-      target.redeemedByStaffId = currentStaff?.id || 'staff-local';
-      target.redeemedByStaffName = currentStaff?.name || 'Kioskvagt';
+      target.redeemedByStaffId = currentStaff?.id || session?.id || 'staff-local';
+      target.redeemedByStaffName = session?.role === 'ADMIN' ? 'Administrator' : 'Personale';
       coupon.redemptionsCount = (coupon.redemptionsCount || 0) + 1;
 
       notifyListeners();
@@ -845,7 +1008,7 @@ export const dataService = {
 
       return {
         status: 'SUCCESS',
-        message: '✓ KUPON GODKENDT',
+        message: 'KUPON GODKENDT',
         couponName: coupon.title,
         offerDetails: `${coupon.offerPrice} kr.`,
         redeemedTime: now.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' }),

@@ -276,13 +276,10 @@ export const CouponsView: React.FC<CouponsViewProps> = ({ coupons, redemptions }
                 </div>
                 {/* Specific required copy */}
                 <h3 className="text-2xl font-black text-emerald-700 uppercase tracking-tight">
-                  ✓ KUPON INDLØST
+                  KUPON INDLØST
                 </h3>
                 <p className="text-sm font-black text-[#081326] mt-1">
-                  Tak – kuponen er blevet brugt
-                </p>
-                <p className="text-xs text-gray-500 mt-2">
-                  Kuponen er godkendt af kioskpersonalet. Velbekomme!
+                  Tak for dit køb i Ceres Arena!
                 </p>
 
                 {activeRedemptionModal.redeemedAt && (
@@ -293,26 +290,17 @@ export const CouponsView: React.FC<CouponsViewProps> = ({ coupons, redemptions }
                         {new Date(activeRedemptionModal.redeemedAt).toLocaleTimeString('da-DK', {
                           hour: '2-digit',
                           minute: '2-digit',
-                          second: '2-digit',
                         })}
                       </span>
                     </div>
-                    {activeRedemptionModal.redeemedByStaffName && (
-                      <div className="flex justify-between text-xs text-gray-600 mt-1">
-                        <span className="font-semibold">Godkendt af:</span>
-                        <span className="font-bold text-[#081326]">
-                          {activeRedemptionModal.redeemedByStaffName}
-                        </span>
-                      </div>
-                    )}
                   </div>
                 )}
 
                 <button
                   onClick={() => setActiveRedemptionModal(null)}
-                  className="mt-6 w-full py-3 bg-[#081326] text-white text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer"
+                  className="mt-6 w-full py-3.5 bg-[#081326] hover:bg-black text-white text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer shadow-md"
                 >
-                  Luk
+                  LUK
                 </button>
               </div>
             ) : activeRedemptionModal.status === 'expired' ? (
@@ -329,9 +317,9 @@ export const CouponsView: React.FC<CouponsViewProps> = ({ coupons, redemptions }
                 </p>
                 <button
                   onClick={() => setActiveRedemptionModal(null)}
-                  className="mt-5 w-full py-2.5 bg-gray-200 text-gray-700 text-xs font-black uppercase rounded-xl cursor-pointer"
+                  className="mt-5 w-full py-3 bg-gray-200 text-gray-700 text-xs font-black uppercase rounded-xl cursor-pointer"
                 >
-                  Luk
+                  LUK
                 </button>
               </div>
             ) : (
@@ -345,7 +333,7 @@ export const CouponsView: React.FC<CouponsViewProps> = ({ coupons, redemptions }
 
                 {/* Coupon title & Offer details */}
                 <h3 className="text-lg font-black text-[#081326] mt-1 uppercase tracking-tight">
-                  {coupons.find((c) => c.id === activeRedemptionModal.couponId)?.title || 'Pausetilbud'}
+                  {coupons.find((c) => c.id === activeRedemptionModal.couponId)?.title || 'Tilbud'}
                 </h3>
                 <p className="text-xs font-semibold text-gray-600 mt-0.5">
                   {coupons.find((c) => c.id === activeRedemptionModal.couponId)?.description}
@@ -366,26 +354,28 @@ export const CouponsView: React.FC<CouponsViewProps> = ({ coupons, redemptions }
                   )}
                 </div>
 
-                {/* Required text: Vis QR-koden i kiosken */}
-                <p className="text-sm font-black text-[#081326] uppercase tracking-wide">
-                  Vis QR-koden i kiosken
+                {/* Clear Instruction */}
+                <p className="text-xs font-bold text-gray-700 leading-relaxed px-2">
+                  Vis denne QR-kode i kiosken for at indløse dit tilbud.
                 </p>
 
-                {/* Live Countdown: Gyldig i 08:42 */}
-                <div className="mt-3 py-2.5 px-4 rounded-xl bg-[#081326] text-white flex items-center justify-center gap-2">
+                {/* Live Countdown: 15-min countdown */}
+                <div className="mt-3 py-2 px-4 rounded-xl bg-[#081326] text-white flex items-center justify-center gap-2">
                   <Clock className="w-4 h-4 text-amber-400" />
                   <span className="text-xs font-bold uppercase tracking-wider text-gray-300">
                     Gyldig i
                   </span>
-                  <span className="font-mono text-xl font-black text-amber-400 tracking-wider">
+                  <span className="font-mono text-lg font-black text-amber-400 tracking-wider">
                     {timeLeftStr}
                   </span>
                 </div>
 
-                <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 py-1.5 px-3 rounded-lg border border-emerald-200">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Sikker engangskode • Venter på kioskens scanner...</span>
-                </div>
+                <button
+                  onClick={() => setActiveRedemptionModal(null)}
+                  className="mt-4 w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-black uppercase tracking-wider rounded-xl cursor-pointer"
+                >
+                  LUK
+                </button>
               </div>
             )}
           </div>

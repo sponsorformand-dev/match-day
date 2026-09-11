@@ -61,9 +61,19 @@ function playAudioFeedback(type: 'success' | 'error') {
 
 export const StaffScannerView: React.FC<StaffScannerViewProps> = ({ db, onExit }) => {
   // Staff Auth State
-  const [currentUser, setCurrentUser] = useState<StaffUser | null>(() =>
-    dataService.getCurrentStaffUser()
-  );
+  const [currentUser, setCurrentUser] = useState<StaffUser | null>(() => {
+    const session = dataService.getCurrentSession();
+    if (session) {
+      return {
+        id: session.id,
+        name: session.role === 'ADMIN' ? 'Administrator' : 'Personale',
+        role: session.role,
+        pin: '',
+        createdAt: new Date().toISOString(),
+      };
+    }
+    return dataService.getCurrentStaffUser();
+  });
   const [pinInput, setPinInput] = useState<string>('');
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -78,24 +88,30 @@ export const StaffScannerView: React.FC<StaffScannerViewProps> = ({ db, onExit }
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const isCooldownRef = useRef<boolean>(false);
 
-  // Handle Staff PIN login
+  // Handle Staff login
   const handlePinLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pinInput.trim()) return;
 
     setAuthError(null);
-    const res = await dataService.staffLogin(pinInput.trim());
-    if (res.success && res.user) {
-      setCurrentUser(res.user);
+    const res = await dataService.login(pinInput.trim());
+    if (res.success && res.role) {
+      setCurrentUser({
+        id: 'sess-' + Date.now(),
+        name: res.role === 'ADMIN' ? 'Administrator' : 'Personale',
+        role: res.role,
+        pin: '',
+        createdAt: new Date().toISOString(),
+      });
       setPinInput('');
     } else {
-      setAuthError(res.error || 'Forkert PIN-kode');
+      setAuthError(res.error || 'Forkert adgangskode');
     }
   };
 
   const handleLogout = () => {
     stopCamera();
-    dataService.logoutStaff();
+    dataService.logout();
     setCurrentUser(null);
     setLastResult(null);
   };
@@ -216,20 +232,17 @@ export const StaffScannerView: React.FC<StaffScannerViewProps> = ({ db, onExit }
             Kiosk Kuponscanner
           </h2>
           <p className="text-xs font-semibold text-gray-500 mt-1">
-            Indtast din personlige medarbejder-PIN for at åbne scanneren
+            Indtast adgangskode for at åbne scanneren
           </p>
 
           <form onSubmit={handlePinLogin} className="mt-6 space-y-4">
             <div>
               <input
                 type="password"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={6}
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value)}
-                placeholder="4-cifret PIN (fx 1880)"
-                className="w-full text-center tracking-[0.4em] font-mono text-2xl font-black py-3.5 px-4 bg-gray-50 rounded-2xl border-2 border-gray-300 focus:border-red-600 focus:bg-white outline-hidden transition-all"
+                placeholder="Indtast adgangskode..."
+                className="w-full text-center tracking-[0.2em] font-mono text-xl font-black py-3.5 px-4 bg-gray-50 rounded-2xl border-2 border-gray-300 focus:border-red-600 focus:bg-white outline-hidden transition-all"
                 autoFocus
               />
             </div>
@@ -249,17 +262,16 @@ export const StaffScannerView: React.FC<StaffScannerViewProps> = ({ db, onExit }
             </button>
           </form>
 
-          <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-400">
-            <span>Standard PIN: 1880</span>
-            {onExit && (
+          {onExit && (
+            <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-center">
               <button
                 onClick={onExit}
-                className="font-bold text-gray-600 hover:text-red-600 cursor-pointer"
+                className="font-bold text-xs uppercase tracking-wider text-gray-500 hover:text-red-600 cursor-pointer"
               >
                 Luk
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -341,12 +353,12 @@ export const StaffScannerView: React.FC<StaffScannerViewProps> = ({ db, onExit }
               <div className="flex items-center justify-between">
                 <h3 className="font-black text-lg uppercase tracking-tight">
                   {lastResult.status === 'SUCCESS'
-                    ? '✓ KUPON GODKENDT'
+                    ? 'KUPON GODKENDT'
                     : lastResult.status === 'ALREADY_USED'
-                    ? 'KUPON ALLEREDE BRUGT'
+                    ? 'ALLEREDE BRUGT'
                     : lastResult.status === 'EXPIRED'
-                    ? 'KUPON UDLØBET'
-                    : lastResult.error || 'UGYLDIG KUPON'}
+                    ? 'UDLØBET'
+                    : 'UGYLDIG KUPON'}
                 </h3>
                 <span className="text-[11px] font-mono font-bold opacity-75">
                   {lastResult.redeemedTime || new Date().toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })}
@@ -457,12 +469,8 @@ export const StaffScannerView: React.FC<StaffScannerViewProps> = ({ db, onExit }
               className="text-xs font-black uppercase tracking-wider text-gray-600 hover:text-[#081326] flex items-center gap-1.5 cursor-pointer"
             >
               <Keyboard className="w-4 h-4 text-red-600" />
-              <span>{showManualInput ? 'Skjul manuel indtastning' : 'Indtast kode manuelt (eller test)'}</span>
+              <span>{showManualInput ? 'Skjul manuel indtastning' : 'Indtast kode manuelt'}</span>
             </button>
-            <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-              <ShieldCheck className="w-3 h-3" />
-              <span>Atomisk server-validering</span>
-            </div>
           </div>
 
           {showManualInput && (
@@ -471,7 +479,7 @@ export const StaffScannerView: React.FC<StaffScannerViewProps> = ({ db, onExit }
                 type="text"
                 value={manualTokenInput}
                 onChange={(e) => setManualTokenInput(e.target.value)}
-                placeholder="Indtast token eller Kupon-ID..."
+                placeholder="Indtast kuponkode..."
                 className="flex-1 text-xs font-mono font-bold px-3 py-2.5 bg-gray-50 border border-gray-300 rounded-xl focus:bg-white focus:border-red-600 outline-hidden"
               />
               <button
@@ -489,68 +497,58 @@ export const StaffScannerView: React.FC<StaffScannerViewProps> = ({ db, onExit }
       <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-xs">
         <div className="flex items-center justify-between mb-3">
           <h4 className="font-black text-xs uppercase tracking-wider text-[#081326]">
-            Seneste kupon-scanninger i hallen
+            SENESTE SCANNINGER
           </h4>
           <span className="text-[10px] font-bold text-gray-400">
-            {db.redemptionLogs?.length || 0} hændelser
+            {db.redemptionLogs?.length || 0} scanninger
           </span>
         </div>
 
         {(!db.redemptionLogs || db.redemptionLogs.length === 0) ? (
           <p className="text-xs text-gray-400 py-3 text-center">
-            Ingen scanninger registreret endnu i denne kampdag.
+            Ingen scanninger registreret endnu.
           </p>
         ) : (
           <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-            {db.redemptionLogs.slice(0, 8).map((log) => (
-              <div
-                key={log.id}
-                className="p-2.5 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-between text-xs"
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      log.status === 'success'
-                        ? 'bg-emerald-500'
-                        : log.status === 'already_used'
-                        ? 'bg-amber-500'
-                        : 'bg-red-500'
-                    }`}
-                  ></span>
-                  <div>
-                    <p className="font-black text-[#081326]">{log.couponTitle}</p>
-                    <p className="text-[10px] text-gray-500">
-                      Scannet af {log.staffName}
-                    </p>
+            {db.redemptionLogs.slice(0, 10).map((log) => {
+              const timeStr = new Date(log.timestamp).toLocaleTimeString('da-DK', {
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+              const statusText =
+                log.status === 'success'
+                  ? 'Godkendt'
+                  : log.status === 'already_used'
+                  ? 'Allerede brugt'
+                  : log.status === 'expired'
+                  ? 'Udløbet'
+                  : 'Ugyldig';
+
+              return (
+                <div
+                  key={log.id}
+                  className="p-2.5 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-between text-xs"
+                >
+                  <div className="font-semibold text-[#081326] truncate pr-2">
+                    <span className="font-mono text-gray-500 mr-1.5">{timeStr}</span>
+                    <span>·</span>
+                    <span className="mx-1.5 font-bold">{log.couponTitle}</span>
+                    <span>·</span>
+                    <span
+                      className={`ml-1.5 font-bold ${
+                        log.status === 'success'
+                          ? 'text-emerald-700'
+                          : log.status === 'already_used'
+                          ? 'text-amber-700'
+                          : 'text-rose-700'
+                      }`}
+                    >
+                      {statusText}
+                    </span>
                   </div>
                 </div>
-
-                <div className="text-right">
-                  <span
-                    className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
-                      log.status === 'success'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : log.status === 'already_used'
-                        ? 'bg-amber-100 text-amber-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}
-                  >
-                    {log.status === 'success'
-                      ? 'Godkendt'
-                      : log.status === 'already_used'
-                      ? 'Allerede brugt'
-                      : 'Afvist'}
-                  </span>
-                  <p className="text-[10px] font-mono text-gray-400 mt-0.5">
-                    {new Date(log.timestamp).toLocaleTimeString('da-DK', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                    })}
-                  </p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
