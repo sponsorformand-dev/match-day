@@ -94,7 +94,7 @@ export const initialDatabase: MatchdayDatabase = {
       id: 'sched-2',
       matchdayId: 'matchday-1',
       time: '12:45',
-      title: 'AGF Damer vs. Horsens HK',
+      title: 'AGF Damer vs. Silkeborg-Voel',
       description: '1. Division Damer. Støt pigerne i jagten på to vigtige point!',
       location: 'Bane 1',
       icon: 'trophy',
@@ -296,7 +296,6 @@ export const initialDatabase: MatchdayDatabase = {
       higherScoreWins: true,
       active: true,
       maxLeaderboardEntries: 5,
-      sponsor: 'hummel',
     },
     {
       id: 'comp-2',
@@ -306,7 +305,6 @@ export const initialDatabase: MatchdayDatabase = {
       higherScoreWins: true,
       active: true,
       maxLeaderboardEntries: 5,
-      sponsor: 'AGF Håndbold',
     },
     {
       id: 'comp-3',
@@ -316,26 +314,9 @@ export const initialDatabase: MatchdayDatabase = {
       higherScoreWins: true,
       active: true,
       maxLeaderboardEntries: 5,
-      sponsor: 'Arbejdernes Landsbank',
     }
   ],
-  scores: [
-    // Skudmåler scores
-    { id: 'score-1', competitionId: 'comp-1', matchdayId: 'matchday-1', participantName: 'Mikkel Lind', score: 96, timestamp: '12:15', isNewRecord: true },
-    { id: 'score-2', competitionId: 'comp-1', matchdayId: 'matchday-1', participantName: 'Frederik B.', score: 92, timestamp: '12:20', isNewRecord: false },
-    { id: 'score-3', competitionId: 'comp-1', matchdayId: 'matchday-1', participantName: 'Alma V.', score: 87, timestamp: '12:28', isNewRecord: false },
-    { id: 'score-4', competitionId: 'comp-1', matchdayId: 'matchday-1', participantName: 'Oscar K.', score: 84, timestamp: '12:35', isNewRecord: false },
-    { id: 'score-5', competitionId: 'comp-1', matchdayId: 'matchday-1', participantName: 'Laura Schmidt', score: 81, timestamp: '12:40', isNewRecord: false },
-    
-    // Præcisionsskydning scores
-    { id: 'score-6', competitionId: 'comp-2', matchdayId: 'matchday-1', participantName: 'Jonas Dahl', score: 28, timestamp: '12:10', isNewRecord: true },
-    { id: 'score-7', competitionId: 'comp-2', matchdayId: 'matchday-1', participantName: 'Sofie M.', score: 24, timestamp: '12:18', isNewRecord: false },
-    { id: 'score-8', competitionId: 'comp-2', matchdayId: 'matchday-1', participantName: 'Rasmus P.', score: 20, timestamp: '12:25', isNewRecord: false },
-
-    // Crossbar Challenge scores
-    { id: 'score-9', competitionId: 'comp-3', matchdayId: 'matchday-1', participantName: 'Emil Thorn', score: 4, timestamp: '12:30', isNewRecord: true },
-    { id: 'score-10', competitionId: 'comp-3', matchdayId: 'matchday-1', participantName: 'Mathias H.', score: 3, timestamp: '12:32', isNewRecord: false }
-  ],
+  scores: [],
   votingSessions: [
     {
       id: 'vote-damer',
@@ -697,5 +678,5 @@ export const initialDatabase: MatchdayDatabase = {
     }
   ],
   redemptionLogs: [],
-  canonicalAppUrl: ''
+  canonicalAppUrl: 'https://match-day-rose.vercel.app'
 };

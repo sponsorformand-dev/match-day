@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { VotingSession, Player, Vote, Partner } from '../types.ts';
+import { VotingSession, Player, Vote, Partner, Match } from '../types.ts';
 import { dataService, getOrCreateDeviceId } from '../services/dataService.ts';
 import { Star, CheckCircle, Trophy, Award, Lock, Sparkles, Heart } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -9,6 +9,7 @@ interface VotingViewProps {
   players: Player[];
   votes: Vote[];
   partners: Partner[];
+  matches?: Match[];
   initialCategory?: 'DAMER' | 'HERRER';
 }
 
@@ -17,6 +18,7 @@ export const VotingView: React.FC<VotingViewProps> = ({
   players,
   votes,
   partners,
+  matches,
   initialCategory = 'DAMER',
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<'DAMER' | 'HERRER'>(initialCategory);
@@ -26,6 +28,7 @@ export const VotingView: React.FC<VotingViewProps> = ({
   const [hasJustVoted, setHasJustVoted] = useState(false);
 
   const deviceId = getOrCreateDeviceId();
+  const currentMatch = (matches || []).find((m) => m.category === selectedCategory);
 
   // Find active session for current category
   const currentSession = sessions.find((s) => s.category === selectedCategory);
@@ -120,7 +123,7 @@ export const VotingView: React.FC<VotingViewProps> = ({
           <div className="bg-[#081326] text-white rounded-2xl p-5 shadow-sm border border-white/10 relative overflow-hidden">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-bold tracking-wider uppercase text-gray-300">
-                AGF HÅNDBOLD {selectedCategory}
+                AGF {selectedCategory}{currentMatch?.opponent ? ` · MOD ${currentMatch.opponent.toUpperCase()}` : ''}
               </span>
               {currentSession.status === 'open' ? (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#C8102E] text-white">

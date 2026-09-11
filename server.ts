@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
+import { initialDatabase } from './src/initialData.ts';
 
 const app = express();
 const PORT = 3000;
@@ -60,6 +61,10 @@ function saveDb(data: any) {
 
 // Memory cache
 let inMemoryDb: any = loadDb();
+if (!inMemoryDb || !inMemoryDb.matchdays || inMemoryDb.matchdays.length === 0) {
+  inMemoryDb = JSON.parse(JSON.stringify(initialDatabase));
+  saveDb(inMemoryDb);
+}
 
 // Real-time Server-Sent Events (SSE) clients registry
 const sseClients = new Set<express.Response>();
@@ -206,6 +211,18 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ success: true });
 });
 
+// Admin terminate specific session
+app.post('/api/auth/session/terminate', (req, res) => {
+  const { sessionId } = req.body;
+  if (!sessionId) return res.status(400).json({ error: 'Mangler sessionId' });
+  if (!inMemoryDb) inMemoryDb = loadDb();
+  if (inMemoryDb) {
+    inMemoryDb.sessions = (inMemoryDb.sessions || []).filter((s: any) => s.id !== sessionId);
+    saveDb(inMemoryDb);
+  }
+  res.json({ success: true });
+});
+
 // Active sessions inspection for admin
 app.get('/api/auth/sessions', (req, res) => {
   if (!inMemoryDb) inMemoryDb = loadDb();
@@ -227,10 +244,17 @@ app.get('/api/auth/sessions', (req, res) => {
   });
 });
 
-// Nulstil Matchday endpoint (Resets active matchday votes, coupons, scores, announcements)
+// Nulstil Matchday endpoint (Requires ADMIN access code)
 app.post('/api/matchday/reset', (req, res) => {
   if (!inMemoryDb) inMemoryDb = loadDb();
   if (!inMemoryDb) return res.status(500).json({ error: 'Database fejl' });
+
+  const { adminCode } = req.body;
+  const targetAdminCode = inMemoryDb.adminCode || 'AGF176';
+  const cleanCode = String(adminCode || '').trim();
+  if (cleanCode !== targetAdminCode && cleanCode !== (inMemoryDb.adminPin || '1880')) {
+    return res.status(401).json({ error: 'Ugyldig ADMIN adgangskode. Nulstilling afbrudt.' });
+  }
 
   const activeMatchdayId = inMemoryDb.activeMatchdayId || 'matchday-1';
 
@@ -270,13 +294,57 @@ app.post('/api/matchday/reset', (req, res) => {
     (sc: any) => sc.matchdayId && sc.matchdayId !== activeMatchdayId
   );
 
-  // 5. Clear announcements for active matchday
+  // 5. Reset match statuses & scores for active matchday
+  inMemoryDb.matches = (inMemoryDb.matches || []).map((m: any) => {
+    if (!m.matchdayId || m.matchdayId === activeMatchdayId) {
+      return {
+        ...m,
+        status: 'upcoming',
+        scoreHome: undefined,
+        scoreAway: undefined,
+        currentPeriod: undefined,
+      };
+    }
+    return m;
+  });
+
+  // 6. Reset programme / schedule items status for active matchday
+  inMemoryDb.schedule = (inMemoryDb.schedule || []).map((s: any) => {
+    if (!s.matchdayId || s.matchdayId === activeMatchdayId) {
+      return {
+        ...s,
+        status: 'upcoming',
+      };
+    }
+    return s;
+  });
+
+  // 7. Clear announcements for active matchday
   inMemoryDb.announcements = (inMemoryDb.announcements || []).filter(
     (a: any) => a.matchdayId && a.matchdayId !== activeMatchdayId
   );
 
-  // 6. Reset visits counter
+  // 8. Reset temporary Matchday configuration (hero banner)
+  const matchday = (inMemoryDb.matchdays || []).find((m: any) => m.id === activeMatchdayId);
+  if (matchday && matchday.featuredHero) {
+    matchday.featuredHero = {
+      enabled: true,
+      badge: 'VELKOMMEN',
+      title: 'VELKOMMEN TIL MATCHDAY',
+      subtitle: 'Se dagens fulde program og aktiviteter i Ceres Arena.',
+      actionText: 'SE PROGRAM',
+      actionTarget: 'program',
+    };
+  }
+
+  // 9. Reset visits counter
   inMemoryDb.visits = 0;
+
+  // Permanent data preserved:
+  // - inMemoryDb.partners (untouched)
+  // - inMemoryDb.partnerCategories (untouched)
+  // - inMemoryDb.canonicalAppUrl (untouched)
+  // - inMemoryDb.staffCode & inMemoryDb.adminCode (untouched)
 
   saveDb(inMemoryDb);
   broadcast('db_updated', inMemoryDb);

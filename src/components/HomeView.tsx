@@ -43,7 +43,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   return (
     <div className="pb-20 pt-1">
       {/* Real-time Announcements Banner */}
-      <AnnouncementsBanner announcements={announcements} />
+      <AnnouncementsBanner announcements={announcements} onNavigate={onNavigate} />
 
       {/* Featured Dynamic Hero Card (Controlled by Admin: "LIVE NU", "PAUSETILBUD", etc.) */}
       {matchday?.featuredHero && (

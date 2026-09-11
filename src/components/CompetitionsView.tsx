@@ -41,16 +41,14 @@ export const CompetitionsView: React.FC<CompetitionsViewProps> = ({
   };
 
   const sortedToday = [...todayScores].sort(sortFn);
-  const sortedAllTime = [...allCompScores].sort(sortFn);
 
   const maxDisplay = selectedCompetition.maxLeaderboardEntries || 5;
   const topScoresToday = sortedToday.slice(0, maxDisplay);
 
   const todayBestScore = sortedToday[0];
-  const allTimeBestScore = sortedAllTime[0];
 
   return (
-    <div className="pb-16 pt-2">
+    <div className="pb-20 pt-2">
       {/* Header */}
       <div className="bg-[#081326] text-white rounded-2xl p-5 mb-4 shadow-sm border border-white/10">
         <div className="flex items-center gap-2 text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1">
@@ -61,12 +59,12 @@ export const CompetitionsView: React.FC<CompetitionsViewProps> = ({
           Konkurrencer & Leaderboard
         </h2>
         <p className="text-xs text-gray-300">
-          Deltag i fanzonens konkurrencer i pausen og se om du kan slå dagens eller hallens all-time rekord!
+          Deltag i fanzonens konkurrencer i pausen og se om du kan slå dagens rekord!
         </p>
       </div>
 
-      {/* Competition Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none mb-3">
+      {/* Competition Tabs (Horizontally scroll/swipe on mobile) */}
+      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none mb-3 -mx-1 px-1 touch-pan-x select-none">
         {activeCompetitions.map((comp) => {
           const isSelected = comp.id === selectedCompetition.id;
           return (
@@ -74,7 +72,7 @@ export const CompetitionsView: React.FC<CompetitionsViewProps> = ({
               key={comp.id}
               id={`comp-tab-${comp.id}`}
               onClick={() => setSelectedCompId(comp.id)}
-              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap transition-all flex items-center gap-1.5 ${
+              className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
                 isSelected
                   ? 'bg-[#081326] text-white shadow-sm'
                   : 'bg-white text-gray-700 border border-gray-200 hover:border-gray-300'
@@ -98,43 +96,30 @@ export const CompetitionsView: React.FC<CompetitionsViewProps> = ({
           </span>
         </div>
 
-        <p className="text-xs text-gray-600 mt-1">
+        <p className="text-xs text-gray-600 mt-1 leading-relaxed">
           {selectedCompetition.description}
         </p>
-
-        {selectedCompetition.sponsor && (
-          <div className="mt-3 pt-2.5 border-t border-gray-100 text-xs text-gray-500 flex items-center justify-between">
-            <span>Sponsor:</span>
-            <span className="font-bold text-[#081326]">{selectedCompetition.sponsor}</span>
-          </div>
-        )}
       </div>
 
-      {/* Record summary stats */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="bg-white rounded-2xl p-3.5 border border-gray-200 text-left">
-          <div className="flex items-center gap-1 text-[11px] font-bold text-gray-500 uppercase">
-            <Medal className="w-3.5 h-3.5 text-amber-500" />
+      {/* Today's Record Only (All-time record removed) */}
+      <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-xs mb-4">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase">
+            <Medal className="w-4 h-4 text-amber-500" />
             <span>Dagens Rekord</span>
           </div>
-          <div className="mt-1 font-black text-xl text-[#081326]">
+          {todayBestScore && (
+            <span className="text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full">
+              Dagens bedste
+            </span>
+          )}
+        </div>
+        <div className="flex items-baseline gap-2 mt-1">
+          <div className="font-black text-2xl text-[#081326]">
             {todayBestScore ? `${todayBestScore.score} ${selectedCompetition.scoringUnit}` : '–'}
           </div>
-          <div className="text-[11px] text-gray-500 truncate mt-0.5 font-medium">
-            {todayBestScore ? todayBestScore.participantName : 'Ingen forsøg endnu'}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-3.5 border border-gray-200 text-left">
-          <div className="flex items-center gap-1 text-[11px] font-bold text-gray-500 uppercase">
-            <Trophy className="w-3.5 h-3.5 text-yellow-500" />
-            <span>All-time Rekord</span>
-          </div>
-          <div className="mt-1 font-black text-xl text-[#081326]">
-            {allTimeBestScore ? `${allTimeBestScore.score} ${selectedCompetition.scoringUnit}` : '–'}
-          </div>
-          <div className="text-[11px] text-gray-500 truncate mt-0.5 font-medium">
-            {allTimeBestScore ? allTimeBestScore.participantName : 'Ingen forsøg endnu'}
+          <div className="text-xs text-gray-500 font-medium truncate">
+            {todayBestScore ? `sat af ${todayBestScore.participantName}` : 'Ingen forsøg registreret i dag endnu'}
           </div>
         </div>
       </div>
@@ -198,9 +183,6 @@ export const CompetitionsView: React.FC<CompetitionsViewProps> = ({
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] text-gray-400 font-mono">
-                        Tidspunkt: kl. {item.timestamp}
-                      </span>
                     </div>
                   </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   MatchdayDatabase,
   Matchday,
@@ -15,6 +15,7 @@ import {
   Announcement,
   FeaturedHero,
   StaffUser,
+  AnnouncementActionTarget,
 } from '../types.ts';
 import { dataService } from '../services/dataService.ts';
 import { StaffScannerView } from './StaffScannerView.tsx';
@@ -57,6 +58,7 @@ import {
 interface AdminDashboardProps {
   db: MatchdayDatabase;
   onClose: () => void;
+  initialSection?: AdminSection;
 }
 
 type AdminSection =
@@ -74,7 +76,7 @@ type AdminSection =
   | 'beskeder'
   | 'analytics';
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose, initialSection }) => {
   // Authentication & Session Management (12-hour active session)
   const [session, setSession] = useState<{ id: string; role: 'ADMIN' | 'STAFF' } | null>(() => {
     return dataService.getCurrentSession();
@@ -94,7 +96,52 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
   // Reset Matchday state
   const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
   const [resetLoading, setResetLoading] = useState<boolean>(false);
+  const [resetAdminCode, setResetAdminCode] = useState<string>('');
+  const [resetError, setResetError] = useState<string | null>(null);
   const [resetNotice, setResetNotice] = useState<string | null>(null);
+
+  // Matchday Create & Edit State
+  const [editingMatchday, setEditingMatchday] = useState<Matchday | null>(null);
+  const [isMatchdayModalOpen, setIsMatchdayModalOpen] = useState<boolean>(false);
+  const [matchdayForm, setMatchdayForm] = useState<{
+    id?: string;
+    title: string;
+    date: string;
+    venue: string;
+    welcomeMessage: string;
+    kampdagssponsorId?: string;
+    kampensSpillerSponsorId?: string;
+    looadUrl: string;
+    active: boolean;
+  }>({
+    title: '',
+    date: '',
+    venue: 'Ceres Arena, Hal 1',
+    welcomeMessage: 'Gør dig klar til det store lokalopgør!',
+    looadUrl: 'https://looad.dk/pages/klub-agf-haandbold',
+    active: false,
+  });
+
+  // Active sessions state
+  const [activeSessionsData, setActiveSessionsData] = useState<{
+    total: number;
+    staffCount: number;
+    adminCount: number;
+    sessions: any[];
+  }>({ total: 0, staffCount: 0, adminCount: 0, sessions: [] });
+  const [loadingSessions, setLoadingSessions] = useState(false);
+
+  const loadSessions = async () => {
+    setLoadingSessions(true);
+    try {
+      const data = await dataService.getActiveSessions();
+      setActiveSessionsData(data);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
 
   // Programme Item Editor State
   const [editingScheduleItem, setEditingScheduleItem] = useState<ScheduleItem | null>(null);
@@ -137,9 +184,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
 
   // Active admin section
   const [currentSection, setCurrentSection] = useState<AdminSection>(() => {
+    if (initialSection) return initialSection;
     const s = dataService.getCurrentSession();
     return s?.role === 'STAFF' ? 'scanner' : 'matchday';
   });
+
+  useEffect(() => {
+    if (initialSection) {
+      setCurrentSection(initialSection);
+    }
+  }, [initialSection]);
+
+  useEffect(() => {
+    if (currentSection === 'staff') {
+      loadSessions();
+    }
+  }, [currentSection]);
 
   // Fast score entry state
   const [scoreCompId, setScoreCompId] = useState<string>('');
@@ -151,6 +211,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
   const [annTitle, setAnnTitle] = useState<string>('');
   const [annMessage, setAnnMessage] = useState<string>('');
   const [annPriority, setAnnPriority] = useState<'normal' | 'important' | 'urgent'>('normal');
+  const [annActionTarget, setAnnActionTarget] = useState<AnnouncementActionTarget>('none');
 
   // Canonical App URL state for Feature 21
   const [canonicalUrlInput, setCanonicalUrlInput] = useState<string>(() => db.canonicalAppUrl || '');
@@ -380,25 +441,95 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
       name: competitionForm.name.trim(),
       description: competitionForm.description.trim() || '',
       scoringUnit: competitionForm.scoringUnit.trim() || 'km/t',
-      higherIsBetter: competitionForm.higherIsBetter,
+      higherScoreWins: competitionForm.higherScoreWins,
+      higherIsBetter: competitionForm.higherScoreWins,
       active: competitionForm.active,
-      sponsor: competitionForm.sponsor.trim() || 'AGF Håndbold',
     };
 
     await dataService.saveCompetition(compToSave);
     setIsCompetitionModalOpen(false);
   };
 
+  const handleOpenCreateMatchday = () => {
+    setEditingMatchday(null);
+    setMatchdayForm({
+      title: '',
+      date: new Date().toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+      venue: 'Ceres Arena, Hal 1',
+      welcomeMessage: 'Gør dig klar til det store lokalopgør!',
+      looadUrl: 'https://looad.dk/pages/klub-agf-haandbold',
+      active: true,
+      kampdagssponsorId: '',
+      kampensSpillerSponsorId: '',
+    });
+    setIsMatchdayModalOpen(true);
+  };
+
+  const handleOpenEditMatchday = (m: Matchday) => {
+    setEditingMatchday(m);
+    setMatchdayForm({
+      id: m.id,
+      title: m.title,
+      date: m.date,
+      venue: m.venue,
+      welcomeMessage: m.welcomeMessage || '',
+      looadUrl: m.looadUrl || 'https://looad.dk/pages/klub-agf-haandbold',
+      active: m.id === db.activeMatchdayId,
+      kampdagssponsorId: m.kampdagssponsorId || '',
+      kampensSpillerSponsorId: m.kampensSpillerSponsorId || '',
+    });
+    setIsMatchdayModalOpen(true);
+  };
+
+  const handleSaveMatchdaySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!matchdayForm.title.trim()) return;
+
+    const matchdayId = matchdayForm.id || `matchday-${Date.now()}`;
+    const newMatchday: Matchday = {
+      id: matchdayId,
+      title: matchdayForm.title.trim(),
+      date: matchdayForm.date.trim() || 'I dag',
+      venue: matchdayForm.venue.trim() || 'Ceres Arena',
+      active: matchdayForm.active,
+      looadUrl: matchdayForm.looadUrl.trim() || 'https://looad.dk/pages/klub-agf-haandbold',
+      welcomeMessage: matchdayForm.welcomeMessage.trim(),
+      kampdagssponsorId: matchdayForm.kampdagssponsorId || undefined,
+      kampensSpillerSponsorId: matchdayForm.kampensSpillerSponsorId || undefined,
+      createdAt: editingMatchday ? editingMatchday.createdAt : new Date().toISOString(),
+      featuredHero: editingMatchday?.featuredHero || {
+        enabled: true,
+        badge: 'VELKOMMEN',
+        title: 'VELKOMMEN TIL MATCHDAY',
+        subtitle: 'Se dagens fulde program og aktiviteter i Ceres Arena.',
+        actionText: 'SE PROGRAM',
+        actionTarget: 'program',
+      },
+    };
+
+    await dataService.saveMatchday(newMatchday);
+    if (matchdayForm.active) {
+      await dataService.setActiveMatchday(matchdayId);
+    }
+    setIsMatchdayModalOpen(false);
+  };
+
   const handleConfirmReset = async () => {
-    setResettingMatchday(true);
-    const res = await dataService.resetMatchday();
-    setResettingMatchday(false);
-    setIsResetModalOpen(false);
+    if (!resetAdminCode.trim()) {
+      setResetError('Indtast venligst ADMIN adgangskoden.');
+      return;
+    }
+    setResetLoading(true);
+    setResetError(null);
+    const res = await dataService.resetMatchday(resetAdminCode.trim());
+    setResetLoading(false);
     if (res.success) {
+      setIsResetModalOpen(false);
+      setResetAdminCode('');
       setResetNotice('Matchday data er nu nulstillet til standard.');
       setTimeout(() => setResetNotice(null), 5000);
     } else {
-      alert(res.error || 'Kunne ikke nulstille Matchday.');
+      setResetError(res.error || 'Forkert adgangskode. Kunne ikke nulstille Matchday.');
     }
   };
 
@@ -487,7 +618,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
   const navItems = [
     { id: 'matchday' as AdminSection, label: 'Matchday', icon: Calendar, adminOnly: true },
     { id: 'scanner' as AdminSection, label: 'Kuponscanner', icon: ScanLine, adminOnly: false },
-    { id: 'staff' as AdminSection, label: 'Personale', icon: Users, adminOnly: true },
+    { id: 'staff' as AdminSection, label: 'Sessioner', icon: Users, adminOnly: true },
     { id: 'kampe' as AdminSection, label: 'Kampe', icon: Flame, adminOnly: true },
     { id: 'program' as AdminSection, label: 'Program', icon: Clock, adminOnly: true },
     { id: 'stem' as AdminSection, label: 'Kampens Spiller', icon: Star, adminOnly: true },
@@ -520,7 +651,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
               </span>
             </div>
             <p className="text-[11px] text-gray-400">
-              {isAdmin ? 'Fuld administratoradgang' : 'Scanner- & resultatadgang'}
+              {isAdmin ? 'Matchday kontrolpanel' : 'Scanner- & resultatadgang'}
             </p>
           </div>
         </div>
@@ -619,21 +750,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
         {currentSection === 'matchday' && (
           <div className="space-y-4">
             <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm">
-              <h3 className="font-bold text-base text-[#081326] mb-2 flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-[#C8102E]" />
-                <span>Vælg Aktiv Matchday</span>
-              </h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-bold text-base text-[#081326] flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-[#C8102E]" />
+                  <span>Matchdays & Kampdage</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={handleOpenCreateMatchday}
+                  className="px-3 py-1.5 bg-[#C8102E] hover:bg-red-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-xs flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Ny Matchday</span>
+                </button>
+              </div>
               <p className="text-xs text-gray-500 mb-3">
-                Den valgte matchday vises automatisk for alle tilskuere i hallen.
+                Kun én matchday er aktiv ad gangen. Den aktive matchday vises automatisk for alle tilskuere på tværs af platformen.
               </p>
 
               <div className="space-y-2">
                 {db.matchdays.map((m) => (
                   <div
                     key={m.id}
-                    className={`p-3 rounded-xl border flex items-center justify-between ${
+                    className={`p-3.5 rounded-xl border flex items-center justify-between ${
                       m.id === db.activeMatchdayId
-                        ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/20'
+                        ? 'bg-emerald-50/80 border-emerald-300 ring-2 ring-emerald-500/20'
                         : 'bg-gray-50 border-gray-200'
                     }`}
                   >
@@ -641,7 +782,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-xs text-[#081326]">{m.title}</span>
                         {m.id === db.activeMatchdayId && (
-                          <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white px-2 py-0.2 rounded-full">
+                          <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white px-2 py-0.5 rounded-full">
                             AKTIV NU
                           </span>
                         )}
@@ -649,14 +790,41 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
                       <span className="text-[11px] text-gray-500">{m.date} · {m.venue}</span>
                     </div>
 
-                    {m.id !== db.activeMatchdayId && (
+                    <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => dataService.setActiveMatchday(m.id)}
-                        className="px-3 py-1.5 bg-[#081326] text-white text-xs font-bold uppercase rounded-lg shadow-xs"
+                        type="button"
+                        onClick={() => handleOpenEditMatchday(m)}
+                        className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                        title="Rediger Matchday"
                       >
-                        Aktivér
+                        Rediger
                       </button>
-                    )}
+
+                      {m.id !== db.activeMatchdayId ? (
+                        <button
+                          type="button"
+                          onClick={() => dataService.setActiveMatchday(m.id)}
+                          className="px-3 py-1.5 bg-[#081326] hover:bg-black text-white text-xs font-bold uppercase rounded-lg shadow-xs cursor-pointer transition-colors"
+                        >
+                          Aktivér
+                        </button>
+                      ) : null}
+
+                      {db.matchdays.length > 1 && m.id !== db.activeMatchdayId && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (confirm(`Vil du slette matchday "${m.title}"?`)) {
+                              await dataService.deleteMatchday(m.id);
+                            }
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          title="Slet Matchday"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1324,177 +1492,122 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
           </div>
         )}
 
-        {/* ================= SECTION: PERSONALE & VAGTSTYRING ================= */}
+        {/* ================= SECTION: AKTIVE SESSIONER ================= */}
         {currentSection === 'staff' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-sm text-[#081326] px-1 uppercase tracking-wider">
-                Kioskpersonale & Vagtstyring
-              </h3>
-              <span className="text-xs font-bold text-gray-400">
-                {(db.staffUsers || []).length} aktive brugere
-              </span>
-            </div>
-
-            {/* Master Admin PIN info card */}
-            <div className="bg-[#081326] text-white rounded-2xl p-4 shadow-sm flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center">
-                  <Key className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-black text-xs uppercase tracking-wider text-red-400">
-                    Master Admin PIN
-                  </h4>
-                  <p className="font-mono text-xl font-black tracking-widest text-white">
-                    {db.adminPin || '1880'}
-                  </p>
-                </div>
+              <div>
+                <h3 className="font-bold text-sm text-[#081326] px-1 uppercase tracking-wider">
+                  Aktive Sessioner
+                </h3>
+                <p className="text-xs text-gray-500 px-1">
+                  12-timers gyldige adgange for personale og administratorer.
+                </p>
               </div>
-              <span className="text-[10px] font-bold uppercase text-gray-300 bg-white/10 px-2 py-1 rounded-lg">
-                Fuld systemadgang
-              </span>
-            </div>
-
-            {/* Add New Staff Member Form */}
-            <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm space-y-3">
-              <h4 className="font-bold text-sm text-[#081326] flex items-center gap-2">
-                <Plus className="w-4 h-4 text-red-600" />
-                <span>Opret ny medarbejder / kioskvagt</span>
-              </h4>
-
-              {staffActionMsg && (
-                <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-xl">
-                  {staffActionMsg}
-                </div>
-              )}
-
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  if (!newStaffName.trim() || !newStaffPin.trim()) return;
-
-                  const newStaff: StaffUser = {
-                    id: `staff-${Date.now()}`,
-                    name: newStaffName.trim(),
-                    pin: newStaffPin.trim(),
-                    role: newStaffRole,
-                    createdAt: new Date().toISOString(),
-                  };
-
-                  await dataService.saveStaffUser(newStaff);
-                  setStaffActionMsg(`✓ Medarbejder "${newStaffName}" oprettet med PIN ${newStaffPin}`);
-                  setNewStaffName('');
-                  setNewStaffPin('');
-                  setTimeout(() => setStaffActionMsg(null), 3500);
-                }}
-                className="space-y-3"
+              <button
+                type="button"
+                onClick={loadSessions}
+                disabled={loadingSessions}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-bold rounded-xl shadow-xs cursor-pointer transition-colors"
               >
-                <div>
-                  <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
-                    Fulde navn / Vagt:
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newStaffName}
-                    onChange={(e) => setNewStaffName(e.target.value)}
-                    placeholder="F.eks. Anders (Kiosk A)"
-                    className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-300 rounded-xl font-bold"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
-                      4-cifret PIN-kode:
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={6}
-                      value={newStaffPin}
-                      onChange={(e) => setNewStaffPin(e.target.value)}
-                      placeholder="fx 2401"
-                      className="w-full px-3 py-2 text-xs font-mono font-bold bg-gray-50 border border-gray-300 rounded-xl"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
-                      Rolle:
-                    </label>
-                    <select
-                      value={newStaffRole}
-                      onChange={(e) => setNewStaffRole(e.target.value as 'STAFF' | 'ADMIN')}
-                      className="w-full px-3 py-2 text-xs font-bold bg-gray-50 border border-gray-300 rounded-xl"
-                    >
-                      <option value="STAFF">STAFF (Kun scanner)</option>
-                      <option value="ADMIN">ADMIN (Fuld adgang)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-xs transition-colors cursor-pointer"
-                >
-                  Tilføj Personale
-                </button>
-              </form>
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingSessions ? 'animate-spin' : ''}`} />
+                <span>Opdater</span>
+              </button>
             </div>
 
-            {/* List of Staff Members */}
+            {/* 3 Metrics Cards */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Totale Sessioner</span>
+                <span className="text-2xl font-black text-[#081326] mt-0.5 block">{activeSessionsData.total}</span>
+                <span className="text-[10px] text-gray-500 block mt-1">i alt lige nu</span>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 border border-emerald-100 shadow-xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 block">STAFF</span>
+                <span className="text-2xl font-black text-emerald-700 mt-0.5 block">{activeSessionsData.staffCount}</span>
+                <span className="text-[10px] text-gray-500 block mt-1">Scanner & kiosk</span>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 border border-red-100 shadow-xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-red-600 block">ADMIN</span>
+                <span className="text-2xl font-black text-red-700 mt-0.5 block">{activeSessionsData.adminCount}</span>
+                <span className="text-[10px] text-gray-500 block mt-1">Fuld adgang</span>
+              </div>
+            </div>
+
+            {/* Session Expiry Policy Card */}
+            <div className="bg-[#081326] text-white rounded-2xl p-4 shadow-sm flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0 mt-0.5">
+                <Clock className="w-5 h-5 text-gray-300" />
+              </div>
+              <div>
+                <h4 className="font-bold text-xs uppercase tracking-wider text-gray-200">
+                  12-timers automatisk udløb
+                </h4>
+                <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                  Alle sessioner godkendt med adgangskoder forbliver aktive i præcis 12 timer på tværs af scannere og computere. Efter 12 timer afbrydes adgangen automatisk, og fornyet login kræves.
+                </p>
+              </div>
+            </div>
+
+            {/* Active Sessions List */}
             <div className="space-y-2">
               <h4 className="font-bold text-xs uppercase tracking-wider text-gray-500 px-1">
-                Registrerede medarbejdere
+                Logget ind på enheder
               </h4>
-              {(!db.staffUsers || db.staffUsers.length === 0) ? (
-                <div className="p-4 bg-white rounded-2xl border text-center text-xs text-gray-400">
-                  Ingen særskilte personale-profiler oprettet endnu.
+              {(!activeSessionsData.sessions || activeSessionsData.sessions.length === 0) ? (
+                <div className="p-6 bg-white rounded-2xl border border-gray-200 text-center text-xs text-gray-400">
+                  Ingen aktive registrerede sessioner i databasen lige nu.
                 </div>
               ) : (
-                db.staffUsers.map((staff) => {
-                  const scans = (db.couponRedemptions || []).filter(
-                    (r) => r.redeemedByStaffId === staff.id
-                  ).length;
+                activeSessionsData.sessions.map((sess) => {
+                  const remainingMs = new Date(sess.expiresAt).getTime() - Date.now();
+                  const hoursLeft = Math.max(0, Math.floor(remainingMs / (1000 * 60 * 60)));
+                  const minsLeft = Math.max(0, Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60)));
 
                   return (
                     <div
-                      key={staff.id}
+                      key={sess.id}
                       className="bg-white rounded-2xl p-3.5 border border-gray-200 shadow-xs flex items-center justify-between"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-[#081326] text-white flex items-center justify-center font-black text-xs">
-                          {staff.name.slice(0, 2).toUpperCase()}
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs text-white ${
+                          sess.role === 'ADMIN' ? 'bg-[#C8102E]' : 'bg-emerald-600'
+                        }`}>
+                          {sess.role === 'ADMIN' ? 'ADM' : 'STF'}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm text-[#081326]">{staff.name}</span>
-                            <span className="text-[10px] font-black uppercase px-2 py-0.2 rounded-full bg-gray-100 text-gray-600">
-                              {staff.role}
+                            <span className="font-bold text-xs text-[#081326]">
+                              {sess.deviceLabel || 'Matchday Terminal'}
+                            </span>
+                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                              sess.role === 'ADMIN' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            }`}>
+                              {sess.role}
                             </span>
                           </div>
-                          <div className="flex items-center gap-3 text-[11px] text-gray-400 mt-0.5 font-mono">
-                            <span>PIN: •••• ({staff.pin})</span>
+                          <div className="flex items-center gap-2 text-[11px] text-gray-400 mt-0.5 font-mono">
+                            <span>Oprettet {new Date(sess.createdAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })}</span>
                             <span>•</span>
-                            <span>{scans} scanninger i dag</span>
+                            <span className="text-amber-700 font-bold">Udløber om {hoursLeft}t {minsLeft}m</span>
                           </div>
                         </div>
                       </div>
 
                       <button
+                        type="button"
                         onClick={async () => {
-                          if (confirm(`Vil du slette medarbejder "${staff.name}"?`)) {
-                            await dataService.deleteStaffUser(staff.id);
+                          if (confirm('Vil du afbryde denne session? Enheden vil blive logget ud.')) {
+                            await dataService.terminateSession(sess.id);
+                            await loadSessions();
                           }
                         }}
-                        className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
-                        title="Slet personale"
+                        className="px-2.5 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-lg transition-colors font-bold cursor-pointer"
+                        title="Afbryd session"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        Afbryd
                       </button>
                     </div>
                   );
@@ -1684,7 +1797,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
               <div className="flex items-center gap-2 mb-2">
                 <Trophy className="w-5 h-5 text-amber-500" />
                 <h3 className="font-extrabold text-base text-[#081326]">
-                  Hurtig Resultat-registrering (Mobil)
+                  Indtast resultat
                 </h3>
               </div>
               <p className="text-xs text-gray-500 mb-3">
@@ -1819,9 +1932,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
                         name: '',
                         description: '',
                         scoringUnit: 'km/t',
+                        higherScoreWins: true,
                         higherIsBetter: true,
                         active: true,
-                        sponsor: 'AGF Partner',
+                        sponsor: '',
                       });
                       setIsCompetitionModalOpen(true);
                     }}
@@ -1845,13 +1959,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
                             <span className="text-[10px] font-mono font-bold bg-white px-1.5 py-0.5 rounded border text-gray-600">
                               {comp.scoringUnit}
                             </span>
+                            <span className="text-[10px] font-bold text-gray-400">
+                              ({comp.higherScoreWins !== false ? 'Højeste vinder' : 'Laveste vinder'})
+                            </span>
                           </div>
                           {comp.description && (
                             <p className="text-xs text-gray-500 mt-0.5">{comp.description}</p>
                           )}
-                          <div className="text-[11px] text-gray-400 mt-1 flex items-center gap-3">
-                            <span>Sponsor: {comp.sponsor || 'AGF Håndbold'}</span>
-                            <span>•</span>
+                          <div className="text-[11px] text-gray-400 mt-1 flex items-center gap-2">
                             <span>{compScores.length} registrerede scores</span>
                           </div>
                         </div>
@@ -1867,9 +1982,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
                                   name: comp.name,
                                   description: comp.description || '',
                                   scoringUnit: comp.scoringUnit,
-                                  higherIsBetter: comp.higherIsBetter,
+                                  higherScoreWins: comp.higherScoreWins !== false,
+                                  higherIsBetter: comp.higherScoreWins !== false,
                                   active: comp.active,
-                                  sponsor: comp.sponsor || '',
+                                  sponsor: '',
                                 });
                                 setIsCompetitionModalOpen(true);
                               }}
@@ -2560,6 +2676,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
                 />
               </div>
 
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                  Handling ved klik (valgfri navigation)
+                </label>
+                <select
+                  value={annActionTarget}
+                  onChange={(e) => setAnnActionTarget(e.target.value as AnnouncementActionTarget)}
+                  className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs font-bold text-[#081326]"
+                >
+                  <option value="none">Ingen handling (kun info)</option>
+                  <option value="program">Gå til Program</option>
+                  <option value="stem">Gå til Kampens Spiller afstemning</option>
+                  <option value="kiosk">Gå til Kiosk Menu</option>
+                  <option value="tilbud">Gå til Kuponer & Tilbud</option>
+                  <option value="konkurrencer">Gå til Konkurrencer</option>
+                  <option value="partnere">Gå til Partnere</option>
+                  <option value="tilmelding">Gå til Støt klubben / Looad</option>
+                  <option value="del-matchday">Gå til Del Matchday</option>
+                </select>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Hvis valgt, gøres hele meddelelsen klikbar på forsiden og fører tilskueren direkte dertil.
+                </p>
+              </div>
+
               <div className="flex gap-2">
                 {(['normal', 'important', 'urgent'] as const).map((p) => (
                   <button
@@ -2584,13 +2724,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
                     title: annTitle,
                     message: annMessage,
                     priority: annPriority,
+                    actionTarget: annActionTarget,
                     active: true,
                     createdAt: new Date().toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' }),
                   });
                   setAnnTitle('');
                   setAnnMessage('');
+                  setAnnActionTarget('none');
                 }}
-                className="w-full py-2.5 bg-[#081326] text-white font-bold text-xs uppercase rounded-xl shadow-xs"
+                className="w-full py-2.5 bg-[#081326] text-white font-bold text-xs uppercase rounded-xl shadow-xs cursor-pointer hover:bg-black"
               >
                 Udsend Besked Nu
               </button>
@@ -2601,11 +2743,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
               {db.announcements.map((ann) => (
                 <div key={ann.id} className="p-3 bg-white rounded-xl border flex items-center justify-between gap-2">
                   <div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-bold text-xs text-[#081326]">{ann.title}</span>
                       <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 bg-gray-100 rounded">
                         {ann.priority}
                       </span>
+                      {ann.actionTarget && ann.actionTarget !== 'none' && (
+                        <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-100 flex items-center gap-1">
+                          <ExternalLink className="w-2.5 h-2.5" />
+                          <span>Link: {ann.actionTarget}</span>
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">{ann.message}</p>
                   </div>
@@ -2696,25 +2844,51 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
               </p>
             </div>
 
-            <div className="bg-red-50/70 p-3.5 rounded-2xl border border-red-200 text-xs text-red-900 space-y-1">
-              <p className="font-bold">Følgende data slettes permanent:</p>
+            <div className="bg-red-50/70 p-3.5 rounded-2xl border border-red-200 text-xs text-red-900 space-y-1.5">
+              <p className="font-bold">Følgende Matchday-specifikke data nulstilles:</p>
               <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-red-800">
-                <li>Alle afgivne stemmer på Kampens Spiller</li>
-                <li>Alle indløsninger og aktiveringer af kuponer</li>
-                <li>Kuponscannerens logbog og audit-trail</li>
-                <li>Dagens registrerede resultater i fanzone-konkurrencer</li>
-                <li>Dagens app-besøgstæller</li>
+                <li>Kampe (stillinger og perioder nulstilles)</li>
+                <li>Programpunkter (status sættes til kommende)</li>
+                <li>Alle afgivne stemmer og vinder i Kampens Spiller</li>
+                <li>Kuponaktiveringer, indløsninger og scanner-log</li>
+                <li>Konkurrenceresultater fra fanzonen</li>
+                <li>Matchday-beskeder og midlertidig hero-konfiguration</li>
+                <li>Appens besøgstæller</li>
               </ul>
-              <p className="text-[11px] text-gray-600 pt-1">
-                Kioskprodukter, kampe, sponsorer og faste kuponer bevares.
-              </p>
+              <div className="pt-1.5 border-t border-red-200/60 text-[11px] text-gray-700">
+                <span className="font-bold text-emerald-800">Bliver bevaret:</span> Partnerdatabase, sponsorkategorier, Looad-standardlink, branding og globale systemindstillinger.
+              </div>
+            </div>
+
+            <div className="space-y-1.5 pt-1">
+              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-gray-700">
+                Bekræft med ADMIN adgangskode:
+              </label>
+              <input
+                type="password"
+                value={resetAdminCode}
+                onChange={(e) => {
+                  setResetAdminCode(e.target.value);
+                  if (resetError) setResetError(null);
+                }}
+                placeholder="Indtast din ADMIN adgangskode..."
+                className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-red-600"
+                autoFocus
+              />
+              {resetError && (
+                <p className="text-[11px] text-red-600 font-bold">{resetError}</p>
+              )}
             </div>
 
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setIsResetModalOpen(false)}
-                disabled={resettingMatchday}
+                onClick={() => {
+                  setIsResetModalOpen(false);
+                  setResetAdminCode('');
+                  setResetError(null);
+                }}
+                disabled={resetLoading}
                 className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs uppercase tracking-wider rounded-xl transition-colors cursor-pointer"
               >
                 Annuller
@@ -2723,16 +2897,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
                 type="button"
                 id="admin-confirm-reset-btn"
                 onClick={handleConfirmReset}
-                disabled={resettingMatchday}
+                disabled={resetLoading || !resetAdminCode.trim()}
                 className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                {resettingMatchday ? (
+                {resetLoading ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                     <span>Nulstiller...</span>
                   </>
                 ) : (
-                  <span>Ja, Nulstil Nu</span>
+                  <span>Bekræft Nulstilling</span>
                 )}
               </button>
             </div>
@@ -2874,14 +3048,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
             <form onSubmit={handleSaveCompetitionSubmit} className="space-y-3">
               <div>
                 <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
-                  Navn på konkurrence
+                  Navn på konkurrence *
                 </label>
                 <input
                   type="text"
                   required
                   value={competitionForm.name}
                   onChange={(e) => setCompetitionForm((prev) => ({ ...prev, name: e.target.value }))}
-                  placeholder="F.eks. Hårdeste Skud"
+                  placeholder="F.eks. Skudmåler, Præcisionskast, mv."
                   className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs font-bold text-[#081326]"
                 />
               </div>
@@ -2896,57 +3070,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
                   onChange={(e) =>
                     setCompetitionForm((prev) => ({ ...prev, description: e.target.value }))
                   }
-                  placeholder="F.eks. Mål din skudstyrke i fanzonen foran Ceres Arena."
+                  placeholder="Beskriv konkurrencen og regler for tilskuerne..."
                   className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326]"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
-                    Måleenhed
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={competitionForm.scoringUnit}
-                    onChange={(e) =>
-                      setCompetitionForm((prev) => ({ ...prev, scoringUnit: e.target.value }))
-                    }
-                    placeholder="km/t, point, mål..."
-                    className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs font-mono font-bold text-[#081326]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
-                    Sponsor
-                  </label>
-                  <input
-                    type="text"
-                    value={competitionForm.sponsor}
-                    onChange={(e) =>
-                      setCompetitionForm((prev) => ({ ...prev, sponsor: e.target.value }))
-                    }
-                    placeholder="F.eks. Sparekassen Danmark"
-                    className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326]"
-                  />
-                </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                  Måleenhed *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={competitionForm.scoringUnit}
+                  onChange={(e) =>
+                    setCompetitionForm((prev) => ({ ...prev, scoringUnit: e.target.value }))
+                  }
+                  placeholder="f.eks. km/t, point, træffere"
+                  className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs font-mono font-bold text-[#081326]"
+                />
               </div>
 
-              <div className="space-y-2 pt-1 border-t border-gray-100">
-                <label className="flex items-center gap-2.5 text-xs text-[#081326] font-bold cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={competitionForm.higherIsBetter}
-                    onChange={(e) =>
-                      setCompetitionForm((prev) => ({ ...prev, higherIsBetter: e.target.checked }))
-                    }
-                    className="w-4 h-4 rounded text-blue-600"
-                  />
-                  <span>Højeste resultat vinder (f.eks. km/t eller point)</span>
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                  Vindermodel *
                 </label>
+                <select
+                  value={competitionForm.higherScoreWins ? 'highest' : 'lowest'}
+                  onChange={(e) =>
+                    setCompetitionForm((prev) => ({
+                      ...prev,
+                      higherScoreWins: e.target.value === 'highest',
+                      higherIsBetter: e.target.value === 'highest',
+                    }))
+                  }
+                  className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs font-bold text-[#081326]"
+                >
+                  <option value="highest">Højeste resultat vinder (f.eks. km/t, point, træffere)</option>
+                  <option value="lowest">Laveste resultat vinder (f.eks. tid, sekunder)</option>
+                </select>
+              </div>
 
+              <div className="pt-1 border-t border-gray-100">
                 <label className="flex items-center gap-2.5 text-xs text-[#081326] font-bold cursor-pointer">
                   <input
                     type="checkbox"
@@ -2956,7 +3121,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
                     }
                     className="w-4 h-4 rounded text-blue-600"
                   />
-                  <span>Aktiv (vises for tilskuere og i scanner)</span>
+                  <span>Aktiv på matchday</span>
                 </label>
               </div>
 
@@ -2973,6 +3138,172 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose }) =
                   className="flex-1 py-2.5 bg-[#081326] hover:bg-black text-white font-black text-xs uppercase rounded-xl shadow-md transition-colors cursor-pointer"
                 >
                   Gem Konkurrence
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: OPRET / REDIGER MATCHDAY ================= */}
+      {isMatchdayModalOpen && (
+        <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-5 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto border border-gray-100">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-red-50 text-[#C8102E] flex items-center justify-center font-black">
+                  <Calendar className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase text-[#081326]">
+                    {editingMatchday ? 'Rediger Matchday' : 'Opret Ny Matchday'}
+                  </h3>
+                  <p className="text-[11px] text-gray-400">
+                    Central container for kampdagens data
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMatchdayModalOpen(false)}
+                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveMatchdaySubmit} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                  Matchday Titel *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={matchdayForm.title}
+                  onChange={(e) => setMatchdayForm((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder="F.eks. AGF Matchday – Dobbeltbrag i Ceres Arena"
+                  className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326] font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                    Dato
+                  </label>
+                  <input
+                    type="text"
+                    value={matchdayForm.date}
+                    onChange={(e) => setMatchdayForm((prev) => ({ ...prev, date: e.target.value }))}
+                    placeholder="Lørdag d. 10. oktober 2026"
+                    className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                    Spillested
+                  </label>
+                  <input
+                    type="text"
+                    value={matchdayForm.venue}
+                    onChange={(e) => setMatchdayForm((prev) => ({ ...prev, venue: e.target.value }))}
+                    placeholder="Ceres Arena, Hal 1"
+                    className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                  Velkomstbesked
+                </label>
+                <input
+                  type="text"
+                  value={matchdayForm.welcomeMessage}
+                  onChange={(e) => setMatchdayForm((prev) => ({ ...prev, welcomeMessage: e.target.value }))}
+                  placeholder="Velkommen til AGF Håndbold i Ceres Arena!"
+                  className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                    Dagens Kampsponsor
+                  </label>
+                  <select
+                    value={matchdayForm.kampdagssponsorId || ''}
+                    onChange={(e) => setMatchdayForm((prev) => ({ ...prev, kampdagssponsorId: e.target.value }))}
+                    className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326]"
+                  >
+                    <option value="">Ingen valgt (standard)</option>
+                    {(db.partners || []).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name || p.companyName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                    Kampens Spiller Sponsor
+                  </label>
+                  <select
+                    value={matchdayForm.kampensSpillerSponsorId || ''}
+                    onChange={(e) => setMatchdayForm((prev) => ({ ...prev, kampensSpillerSponsorId: e.target.value }))}
+                    className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326]"
+                  >
+                    <option value="">Ingen valgt (standard)</option>
+                    {(db.partners || []).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name || p.companyName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                  Looad Kampagnelink
+                </label>
+                <input
+                  type="url"
+                  value={matchdayForm.looadUrl}
+                  onChange={(e) => setMatchdayForm((prev) => ({ ...prev, looadUrl: e.target.value }))}
+                  placeholder="https://looad.dk/pages/klub-agf-haandbold"
+                  className="w-full p-2.5 bg-gray-50 rounded-xl border text-xs text-[#081326]"
+                />
+              </div>
+
+              <div className="pt-2 border-t border-gray-100">
+                <label className="flex items-center gap-2.5 text-xs text-[#081326] font-bold cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={matchdayForm.active}
+                    onChange={(e) => setMatchdayForm((prev) => ({ ...prev, active: e.target.checked }))}
+                    className="w-4 h-4 rounded text-blue-600"
+                  />
+                  <span>Gør denne Matchday aktiv nu (synlig for alle tilskuere)</span>
+                </label>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsMatchdayModalOpen(false)}
+                  className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs uppercase rounded-xl transition-colors cursor-pointer"
+                >
+                  Annuller
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-[#C8102E] hover:bg-red-700 text-white font-black text-xs uppercase rounded-xl shadow-md transition-colors cursor-pointer"
+                >
+                  Gem Matchday
                 </button>
               </div>
             </form>

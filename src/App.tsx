@@ -35,6 +35,7 @@ export default function App() {
       window.location.pathname.startsWith('/admin')
     );
   });
+  const [adminInitialSection, setAdminInitialSection] = useState<any>(undefined);
   const [voteCategory, setVoteCategory] = useState<'DAMER' | 'HERRER'>('DAMER');
 
   // Verify active 12-hour session on launch
@@ -144,6 +145,7 @@ export default function App() {
                 players={db.players}
                 votes={db.votes}
                 partners={db.partners}
+                matches={activeMatches}
                 initialCategory={voteCategory}
               />
             )}

@@ -6,7 +6,7 @@ export interface FeaturedHero {
   title: string;
   subtitle?: string;
   actionText: string;
-  actionTarget: 'program' | 'kiosk' | 'tilbud' | 'konkurrencer' | 'tilmelding' | 'partnere' | 'del-matchday';
+  actionTarget: 'program' | 'kiosk' | 'tilbud' | 'konkurrencer' | 'tilmelding' | 'partnere' | 'del-matchday' | 'stem';
 }
 
 export interface Matchday {
@@ -208,6 +208,17 @@ export interface Partner {
 
 export type AnnouncementPriority = 'normal' | 'important' | 'urgent';
 
+export type AnnouncementActionTarget =
+  | 'none'
+  | 'program'
+  | 'stem'
+  | 'kiosk'
+  | 'tilbud'
+  | 'konkurrencer'
+  | 'partnere'
+  | 'tilmelding'
+  | 'del-matchday';
+
 export interface Announcement {
   id: string;
   matchdayId: string;
@@ -215,6 +226,7 @@ export interface Announcement {
   message: string;
   priority: AnnouncementPriority;
   active: boolean;
+  actionTarget?: AnnouncementActionTarget;
   createdAt: string;
 }
 

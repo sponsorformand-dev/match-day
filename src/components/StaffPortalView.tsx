@@ -293,7 +293,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ db, onExitToPu
             }`}
           >
             <Sliders className="w-4 h-4" />
-            <span>Fuld Kontrolpanel</span>
+            <span>Alle indstillinger</span>
           </button>
         )}
       </div>

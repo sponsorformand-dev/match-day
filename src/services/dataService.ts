@@ -328,6 +328,26 @@ export const dataService = {
     } else {
       cachedDb.matches.push(match);
     }
+
+    // Keep schedule item opponent names in sync with match data
+    if (match.category && match.awayTeam) {
+      cachedDb.schedule = cachedDb.schedule.map(item => {
+        if (match.category === 'DAMER' && (item.title.toLowerCase().includes('damer') || item.id === 'sched-2')) {
+          return {
+            ...item,
+            title: `AGF Damer vs. ${match.awayTeam}`,
+          };
+        }
+        if (match.category === 'HERRER' && (item.title.toLowerCase().includes('herrer') || item.id === 'sched-4')) {
+          return {
+            ...item,
+            title: `AGF Herrer vs. ${match.awayTeam}`,
+          };
+        }
+        return item;
+      });
+    }
+
     notifyListeners();
     await pushToServer(cachedDb);
   },
@@ -527,11 +547,12 @@ export const dataService = {
     }
   },
 
-  async resetMatchday(): Promise<{ success: boolean; message?: string; error?: string }> {
+  async resetMatchday(adminCode: string): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
       const res = await fetch('/api/matchday/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminCode: adminCode.trim() }),
       });
       const data = await res.json();
       await syncFromServer();
@@ -826,6 +847,65 @@ export const dataService = {
     }
     this.setSession(null);
     this.setStaffSession(null);
+  },
+
+  async verifySession(): Promise<{ valid: boolean; role?: 'ADMIN' | 'STAFF' }> {
+    const session = this.getCurrentSession();
+    if (!session) return { valid: false };
+
+    // Check expiration (12 hours)
+    if (new Date(session.expiresAt) <= new Date()) {
+      await this.logout();
+      return { valid: false };
+    }
+
+    try {
+      const res = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: session.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        await this.logout();
+        return { valid: false };
+      }
+      return { valid: true, role: data.role };
+    } catch {
+      // Offline fallback: verify local expiration
+      return { valid: true, role: session.role };
+    }
+  },
+
+  async getActiveSessions(): Promise<{ total: number; staffCount: number; adminCount: number; sessions: any[] }> {
+    try {
+      const res = await fetch('/api/auth/sessions');
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // ignore
+    }
+    const current = this.getCurrentSession();
+    return {
+      total: current ? 1 : 0,
+      staffCount: current?.role === 'STAFF' ? 1 : 0,
+      adminCount: current?.role === 'ADMIN' ? 1 : 0,
+      sessions: current ? [current] : [],
+    };
+  },
+
+  async terminateSession(sessionId: string): Promise<boolean> {
+    try {
+      const res = await fetch('/api/auth/session/terminate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
   },
 
   // Access Codes Management

@@ -1,12 +1,16 @@
 import React from 'react';
-import { Announcement } from '../types.ts';
-import { AlertCircle, Bell, Megaphone } from 'lucide-react';
+import { Announcement, ActiveTab } from '../types.ts';
+import { AlertCircle, Bell, Megaphone, ChevronRight } from 'lucide-react';
 
 interface AnnouncementsBannerProps {
   announcements: Announcement[];
+  onNavigate?: (tab: ActiveTab) => void;
 }
 
-export const AnnouncementsBanner: React.FC<AnnouncementsBannerProps> = ({ announcements }) => {
+export const AnnouncementsBanner: React.FC<AnnouncementsBannerProps> = ({
+  announcements,
+  onNavigate,
+}) => {
   const activeAnnouncements = announcements.filter((a) => a.active);
 
   if (activeAnnouncements.length === 0) return null;
@@ -28,10 +32,37 @@ export const AnnouncementsBanner: React.FC<AnnouncementsBannerProps> = ({ announ
           badge = 'VIGTIGT';
         }
 
+        const isClickable = Boolean(
+          ann.actionTarget && ann.actionTarget !== 'none' && onNavigate
+        );
+
+        const handleClick = () => {
+          if (isClickable && ann.actionTarget && onNavigate) {
+            onNavigate(ann.actionTarget as ActiveTab);
+          }
+        };
+
         return (
           <div
             key={ann.id}
-            className={`p-3 rounded-xl border flex items-start gap-2.5 shadow-xs ${bgStyle}`}
+            role={isClickable ? 'button' : undefined}
+            tabIndex={isClickable ? 0 : undefined}
+            onClick={isClickable ? handleClick : undefined}
+            onKeyDown={
+              isClickable
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleClick();
+                    }
+                  }
+                : undefined
+            }
+            className={`p-3 rounded-xl border flex items-start gap-2.5 shadow-xs transition-all ${
+              isClickable
+                ? 'cursor-pointer hover:opacity-95 active:scale-[0.99]'
+                : ''
+            } ${bgStyle}`}
           >
             {icon}
             <div className="flex-1 text-xs">
@@ -43,6 +74,11 @@ export const AnnouncementsBanner: React.FC<AnnouncementsBannerProps> = ({ announ
               </div>
               <p className="text-gray-700 leading-relaxed">{ann.message}</p>
             </div>
+            {isClickable && (
+              <div className="self-center pl-1 text-gray-400 shrink-0">
+                <ChevronRight className="w-4 h-4" />
+              </div>
+            )}
           </div>
         );
       })}

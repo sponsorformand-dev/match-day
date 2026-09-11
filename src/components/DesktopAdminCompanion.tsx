@@ -5,7 +5,7 @@ import { Plus, Check, Send, ScanLine, Share2 } from 'lucide-react';
 
 interface DesktopAdminCompanionProps {
   db: MatchdayDatabase;
-  onOpenAdmin: () => void;
+  onOpenAdmin: (section?: string) => void;
 }
 
 export const DesktopAdminCompanion: React.FC<DesktopAdminCompanionProps> = ({
@@ -35,10 +35,11 @@ export const DesktopAdminCompanion: React.FC<DesktopAdminCompanionProps> = ({
   };
 
   const handleToggleCoupons = async () => {
-    const coupon = db.coupons[0];
-    if (!coupon) return;
-    await dataService.saveCoupon({ ...coupon, active: !coupon.active });
-    setQuickActionStatus(`Pausetilbud ${!coupon.active ? 'aktiveret' : 'deaktiveret'}`);
+    const anyActive = db.coupons.some((c) => c.active);
+    for (const c of db.coupons) {
+      await dataService.saveCoupon({ ...c, active: !anyActive });
+    }
+    setQuickActionStatus(`Pausetilbud ${!anyActive ? 'aktiveret' : 'deaktiveret'}`);
     setTimeout(() => setQuickActionStatus(null), 3000);
   };
 
@@ -132,10 +133,10 @@ export const DesktopAdminCompanion: React.FC<DesktopAdminCompanionProps> = ({
                 Aktive Brugere
               </div>
               <div className="text-4xl font-black text-[#081326] leading-none">
-                {Math.max(db.visits, 428)}
+                {db.visits}
               </div>
               <div className="text-[10px] text-green-600 font-bold mt-2">
-                +12% siden kampstart
+                Besøg i dag
               </div>
             </div>
 
@@ -144,10 +145,10 @@ export const DesktopAdminCompanion: React.FC<DesktopAdminCompanionProps> = ({
                 Stemmer Afgivet
               </div>
               <div className="text-4xl font-black text-[#081326] leading-none">
-                {db.votes.length > 0 ? db.votes.length : '1.259'}
+                {db.votes.length}
               </div>
               <div className="text-[10px] text-blue-600 font-bold mt-2">
-                {isVotingOpen ? 'Kampens Spiller aktiv' : 'Afstemning klar'}
+                {isVotingOpen ? 'Afstemning åben' : 'Afstemning lukket'}
               </div>
             </div>
 
@@ -156,10 +157,10 @@ export const DesktopAdminCompanion: React.FC<DesktopAdminCompanionProps> = ({
                 Indløste Kuponer
               </div>
               <div className="text-4xl font-black text-[#081326] leading-none">
-                {db.couponRedemptions.length > 0 ? db.couponRedemptions.length : '84'}
+                {db.couponRedemptions.filter((r) => r.status === 'redeemed').length}
               </div>
               <div className="text-[10px] text-orange-600 font-bold mt-2">
-                Fadøl-tilbud populært
+                {db.couponRedemptions.length} aktiverede i alt
               </div>
             </div>
           </div>
@@ -258,10 +259,10 @@ export const DesktopAdminCompanion: React.FC<DesktopAdminCompanionProps> = ({
               </button>
 
               <button
-                onClick={onOpenAdmin}
-                className="w-full bg-white/10 hover:bg-white/20 p-3 rounded-xl flex items-center justify-between transition-all text-left group"
+                onClick={() => onOpenAdmin('konkurrencer')}
+                className="w-full bg-white/10 hover:bg-white/20 p-3 rounded-xl flex items-center justify-between transition-all text-left group cursor-pointer"
               >
-                <span className="text-sm font-bold">Indtast Score (Skudmåler)</span>
+                <span className="text-sm font-bold">Indtast resultat</span>
                 <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
               </button>
 
@@ -269,7 +270,7 @@ export const DesktopAdminCompanion: React.FC<DesktopAdminCompanionProps> = ({
                 onClick={() => {
                   window.location.hash = '#scanner';
                 }}
-                className="w-full bg-red-600/80 hover:bg-red-600 p-3 rounded-xl flex items-center justify-between transition-all text-left group text-white"
+                className="w-full bg-red-600/80 hover:bg-red-600 p-3 rounded-xl flex items-center justify-between transition-all text-left group text-white cursor-pointer"
               >
                 <div className="flex items-center gap-2">
                   <ScanLine className="w-4 h-4" />
@@ -279,26 +280,12 @@ export const DesktopAdminCompanion: React.FC<DesktopAdminCompanionProps> = ({
               </button>
 
               <button
-                onClick={onOpenAdmin}
-                className="w-full bg-white/5 hover:bg-white/15 p-3 rounded-xl flex items-center justify-between transition-all text-left text-xs text-gray-300 font-bold uppercase tracking-wider"
+                onClick={() => onOpenAdmin()}
+                className="w-full bg-white/5 hover:bg-white/15 p-3 rounded-xl flex items-center justify-between transition-all text-left text-xs text-gray-300 font-bold uppercase tracking-wider cursor-pointer"
               >
-                <span>Fuld Kontrolpanel</span>
+                <span>Alle indstillinger</span>
                 <Plus className="w-3.5 h-3.5 text-white/60" />
               </button>
-            </div>
-          </div>
-
-          <div className="mt-auto pt-6 border-t border-white/10">
-            <h2 className="font-black uppercase text-xs tracking-widest text-white/40 mb-3">
-              Sponsor Partner
-            </h2>
-            <div className="bg-white rounded-xl p-3 flex items-center justify-center shadow-xs">
-              <img
-                src="/partners/looad.png"
-                alt="Looad"
-                className="max-h-7 max-w-[120px] object-contain"
-                referrerPolicy="no-referrer"
-              />
             </div>
           </div>
         </div>
