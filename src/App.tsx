@@ -212,7 +212,10 @@ export default function App() {
         {/* Desktop Admin Companion Panel (Visible on Desktop / Large Tablet Screens) */}
         <DesktopAdminCompanion
           db={db}
-          onOpenAdmin={() => setIsAdminOpen(true)}
+          onOpenAdmin={(section) => {
+            setAdminInitialSection(section);
+            setIsAdminOpen(true);
+          }}
         />
       </div>
 
@@ -224,7 +227,10 @@ export default function App() {
         hasCoupons={hasActiveOffers}
         session={session}
         onOpenLogin={() => setIsLoginModalOpen(true)}
-        onOpenAdmin={() => setIsAdminOpen(true)}
+        onOpenAdmin={() => {
+          setAdminInitialSection(undefined);
+          setIsAdminOpen(true);
+        }}
         onLogout={() => {
           dataService.logout();
           setSession(null);
@@ -239,6 +245,7 @@ export default function App() {
           const updatedSession = dataService.getCurrentSession();
           setSession(updatedSession);
           if (role === 'ADMIN') {
+            setAdminInitialSection(undefined);
             setIsAdminOpen(true);
           } else if (role === 'STAFF') {
             handleTabChange('scanner');
@@ -250,8 +257,10 @@ export default function App() {
       {isAdminOpen && (
         <AdminDashboard
           db={db}
+          initialSection={adminInitialSection}
           onClose={() => {
             setIsAdminOpen(false);
+            setAdminInitialSection(undefined);
             if (window.location.hash === '#admin') {
               history.pushState(null, '', window.location.pathname);
             }

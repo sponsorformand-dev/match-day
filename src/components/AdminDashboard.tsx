@@ -264,7 +264,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose, ini
     { label: 'Jørgen Kræmer Rasmussen', path: '/partners/jorgen-kraemer-rasmussen.png' },
     { label: 'Djurslands Bank', path: '/partners/djurslands-bank.png' },
     { label: 'Harald Nyborg', path: '/partners/harald-nyborg.png' },
-    { label: 'Scorjobbet.dk', path: '/partners/scorjobbet.png' },
+    { label: 'AGF Play', path: '/partners/scorjobbet.png' },
     { label: 'Kaufmann', path: '/partners/kaufmann.png' },
     { label: 'V Steel A/S', path: '/partners/v-steel.png' },
     { label: 'AK Smede', path: '/partners/ak-smede.png' },
@@ -934,7 +934,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose, ini
                     setCanonicalUrlInput(e.target.value);
                     setCanonicalUrlSaved(false);
                   }}
-                  placeholder="https://matchday.agf.dk"
+                  placeholder="https://match-day-rose.vercel.app"
                   className="flex-1 px-3 py-2 text-xs font-mono bg-gray-50 border border-gray-300 rounded-xl focus:bg-white focus:border-red-600 outline-hidden font-bold"
                 />
                 <button

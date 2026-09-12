@@ -50,6 +50,11 @@ function normalizePartnersList(partners: any[]): { partners: any[]; updated: boo
       }
       seenScorjobbet = true;
       let pCopy = { ...p };
+      if (pCopy.name !== 'AGF Play') {
+        pCopy.name = 'AGF Play';
+        pCopy.companyName = 'AGF Play';
+        updated = true;
+      }
       if (pCopy.category !== 'AGF PLAY' || pCopy.sponsorCategory !== 'AGF PLAY' || pCopy.sortOrder !== 6) {
         pCopy.category = 'AGF PLAY';
         pCopy.sponsorCategory = 'AGF PLAY';

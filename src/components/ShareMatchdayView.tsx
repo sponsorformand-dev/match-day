@@ -23,9 +23,9 @@ export const ShareMatchdayView: React.FC<ShareMatchdayViewProps> = ({
   const shareTargetUrl =
     canonicalUrl ||
     matchday?.shareUrl ||
-    (typeof window !== 'undefined'
+    (typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')
       ? `${window.location.origin}${window.location.pathname.replace(/\/admin.*$/, '').replace(/\/scanner.*$/, '')}`
-      : 'https://matchday.agf.dk');
+      : 'https://match-day-rose.vercel.app');
 
   useEffect(() => {
     // Generate high-resolution, high-contrast QR code

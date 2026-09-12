@@ -464,8 +464,8 @@ export const initialDatabase: MatchdayDatabase = {
     },
     {
       id: 'part-scorjobbet',
-      name: 'Scorjobbet.dk',
-      companyName: 'Scorjobbet.dk',
+      name: 'AGF Play',
+      companyName: 'AGF Play',
       logo: '/partners/scorjobbet.png',
       logoUrl: '/partners/scorjobbet.png',
       category: 'AGF PLAY',
