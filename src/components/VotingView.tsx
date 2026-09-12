@@ -120,44 +120,55 @@ export const VotingView: React.FC<VotingViewProps> = ({
       ) : (
         <div className="space-y-4">
           {/* Header info */}
-          <div className="bg-[#081326] text-white rounded-2xl p-5 shadow-sm border border-white/10 relative overflow-hidden">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold tracking-wider uppercase text-gray-300">
-                AGF {selectedCategory}{currentMatch?.opponent ? ` · MOD ${currentMatch.opponent.toUpperCase()}` : ''}
-              </span>
-              {currentSession.status === 'open' ? (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#C8102E] text-white">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
-                  Åben for stemmer
+          <div className="bg-[#081326] text-white rounded-2xl p-5 shadow-sm border border-white/10 relative overflow-hidden flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold tracking-wider uppercase text-gray-300">
+                  AGF {selectedCategory}{currentMatch?.opponent ? ` · MOD ${currentMatch.opponent.toUpperCase()}` : ''}
                 </span>
-              ) : currentSession.status === 'closed' ? (
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-gray-700 text-gray-200">
-                  Afstemning afsluttet
-                </span>
-              ) : (
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase bg-white/10 text-gray-300">
-                  Afventer start
-                </span>
+                {currentSession.status === 'open' ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#C8102E] text-white">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                    Åben for stemmer
+                  </span>
+                ) : currentSession.status === 'closed' ? (
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-gray-700 text-gray-200">
+                    Afstemning afsluttet
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase bg-white/10 text-gray-300">
+                    Afventer start
+                  </span>
+                )}
+              </div>
+
+              <h2 className="text-2xl font-black uppercase tracking-tight text-white flex items-center gap-2">
+                <Star className="w-6 h-6 text-amber-400 fill-current" />
+                <span>Kampens Spiller</span>
+              </h2>
+
+              <p className="text-xs text-gray-300 mt-1">
+                Stem på den spiller der har gjort den største forskel på banen i dag.
+              </p>
+
+              {currentSession.sponsor && (
+                <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center gap-2 text-[11px] text-gray-300">
+                  <span>Præsenteres af:</span>
+                  <span className="font-bold text-white bg-white/10 px-2 py-0.5 rounded">
+                    {currentSession.sponsor}
+                  </span>
+                </div>
               )}
             </div>
 
-            <h2 className="text-2xl font-black uppercase tracking-tight text-white flex items-center gap-2">
-              <Star className="w-6 h-6 text-amber-400 fill-current" />
-              <span>Kampens Spiller</span>
-            </h2>
-
-            <p className="text-xs text-gray-300 mt-1">
-              Stem på den spiller der har gjort den største forskel på banen i dag.
-            </p>
-
-            {currentSession.sponsor && (
-              <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center gap-2 text-[11px] text-gray-300">
-                <span>Præsenteres af:</span>
-                <span className="font-bold text-white bg-white/10 px-2 py-0.5 rounded">
-                  {currentSession.sponsor}
-                </span>
-              </div>
-            )}
+            <div className="w-12 h-12 rounded-2xl bg-white/10 p-2 flex items-center justify-center border border-white/15 shrink-0">
+              <img
+                src="/agf-logo.svg"
+                alt="AGF Håndbold"
+                className="w-full h-full object-contain"
+                referrerPolicy="no-referrer"
+              />
+            </div>
           </div>
 
           {/* Winner Display if Session is Closed & Winner is chosen */}

@@ -224,8 +224,8 @@ export const StaffScannerView: React.FC<StaffScannerViewProps> = ({ db, onExit }
     return (
       <div className="min-h-[80vh] flex flex-col justify-center px-4 py-8 max-w-md mx-auto">
         <div className="bg-white rounded-3xl p-6 sm:p-8 border-2 border-[#081326] shadow-xl text-center">
-          <div className="w-16 h-16 rounded-2xl bg-[#081326] text-white flex items-center justify-center mx-auto mb-4 shadow-md">
-            <ScanLine className="w-8 h-8 text-red-500" />
+          <div className="w-16 h-16 rounded-2xl bg-white border-2 border-red-600 p-2 flex items-center justify-center mx-auto mb-4 shadow-md">
+            <img src="/agf-logo.svg" alt="AGF Håndbold" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
           </div>
 
           <h2 className="text-2xl font-black uppercase tracking-tight text-[#081326]">

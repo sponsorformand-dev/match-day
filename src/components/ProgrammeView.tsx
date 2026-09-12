@@ -18,17 +18,27 @@ export const ProgrammeView: React.FC<ProgrammeViewProps> = ({
   return (
     <div className="pb-16 pt-2">
       {/* Section Header */}
-      <div className="bg-[#081326] text-white rounded-2xl p-5 mb-4 shadow-sm border border-white/10">
-        <div className="flex items-center gap-2 text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1">
-          <Calendar className="w-3.5 h-3.5 text-[#C8102E]" />
-          <span>{matchdayDate || 'Dagens program'}</span>
+      <div className="bg-[#081326] text-white rounded-2xl p-5 mb-4 shadow-sm border border-white/10 flex items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1">
+            <Calendar className="w-3.5 h-3.5 text-[#C8102E]" />
+            <span>{matchdayDate || 'Dagens program'}</span>
+          </div>
+          <h2 className="text-2xl font-black font-['Teko'] uppercase tracking-tight text-white">
+            Dagens Program
+          </h2>
+          <p className="text-xs text-gray-300">
+            Følg tidsplanen for alle aktiviteter og kampe i Ceres Arena.
+          </p>
         </div>
-        <h2 className="text-2xl font-black font-['Teko'] uppercase tracking-tight text-white">
-          Dagens Program
-        </h2>
-        <p className="text-xs text-gray-300">
-          Følg tidsplanen for alle aktiviteter og kampe i Ceres Arena.
-        </p>
+        <div className="w-12 h-12 rounded-2xl bg-white/10 p-2 flex items-center justify-center border border-white/15 shrink-0">
+          <img
+            src="/agf-logo.svg"
+            alt="AGF Håndbold"
+            className="w-full h-full object-contain"
+            referrerPolicy="no-referrer"
+          />
+        </div>
       </div>
 
       {sorted.length === 0 ? (

@@ -94,6 +94,44 @@ function normalizePartnersList(partners: any[]): { partners: any[]; updated: boo
   return { partners: deduped, updated };
 }
 
+function normalizeMatchesList(matches: any[]): { matches: Match[]; updated: boolean } {
+  if (!matches || !Array.isArray(matches) || matches.length === 0) {
+    return { matches: initialDatabase.matches, updated: true };
+  }
+  let updated = false;
+  const normalized: Match[] = matches.map((m: any) => {
+    const homeName = m.homeTeamName || m.homeTeam || 'AGF Håndbold';
+    const homeLogo = m.homeTeamLogo || (homeName.includes('AGF') ? '/agf-logo.svg' : '');
+    const awayName = m.awayTeamName || m.awayTeam || 'Udehold';
+    const awayLogo = m.awayTeamLogo || m.awayLogo || '';
+
+    if (
+      m.homeTeamName !== homeName ||
+      m.homeTeamLogo !== homeLogo ||
+      m.awayTeamName !== awayName ||
+      m.awayTeamLogo !== awayLogo ||
+      m.homeTeam !== homeName ||
+      m.awayTeam !== awayName ||
+      m.awayLogo !== awayLogo
+    ) {
+      updated = true;
+    }
+
+    return {
+      ...m,
+      homeTeam: homeName,
+      homeTeamName: homeName,
+      homeTeamLogo: homeLogo,
+      awayTeam: awayName,
+      awayTeamName: awayName,
+      awayTeamLogo: awayLogo,
+      awayLogo: awayLogo,
+    };
+  });
+
+  return { matches: normalized, updated };
+}
+
 // Local cache
 let cachedDb: MatchdayDatabase = (() => {
   try {
@@ -105,6 +143,12 @@ let cachedDb: MatchdayDatabase = (() => {
       } else {
         const { partners: normPartners } = normalizePartnersList(parsed.partners);
         parsed.partners = normPartners;
+      }
+      if (parsed.matches) {
+        const { matches: normMatches } = normalizeMatchesList(parsed.matches);
+        parsed.matches = normMatches;
+      } else {
+        parsed.matches = initialDatabase.matches;
       }
       if (parsed.matchdays) {
         parsed.matchdays = parsed.matchdays.map((m: any) => {
@@ -161,6 +205,13 @@ export async function syncFromServer(): Promise<MatchdayDatabase> {
           if (partnersUpdated) {
             serverData.partners = normPartners;
             updated = true;
+          }
+          if (serverData.matches) {
+            const { matches: normMatches, updated: matchesUpdated } = normalizeMatchesList(serverData.matches);
+            if (matchesUpdated) {
+              serverData.matches = normMatches;
+              updated = true;
+            }
           }
           if (serverData.matchdays) {
             serverData.matchdays = serverData.matchdays.map((m: any) => {
@@ -327,26 +378,62 @@ export const dataService = {
 
   // Matches
   async saveMatch(match: Match) {
+    const homeName = (match.homeTeamName || match.homeTeam || 'AGF Håndbold').trim();
+    const homeLogo = match.homeTeamLogo || (homeName.includes('AGF') ? '/agf-logo.svg' : '');
+    const awayName = (match.awayTeamName || match.awayTeam || 'Udehold').trim();
+    const awayLogo = match.awayTeamLogo || match.awayLogo || '';
+
+    const normalizedMatch: Match = {
+      ...match,
+      homeTeam: homeName,
+      homeTeamName: homeName,
+      homeTeamLogo: homeLogo,
+      awayTeam: awayName,
+      awayTeamName: awayName,
+      awayTeamLogo: awayLogo,
+      awayLogo: awayLogo,
+    };
+
     const idx = cachedDb.matches.findIndex(m => m.id === match.id);
     if (idx >= 0) {
-      cachedDb.matches[idx] = match;
+      cachedDb.matches[idx] = normalizedMatch;
     } else {
-      cachedDb.matches.push(match);
+      cachedDb.matches.push(normalizedMatch);
     }
 
+    // Changing a team logo in admin must update it everywhere that team appears.
+    cachedDb.matches = cachedDb.matches.map(m => {
+      let mCopy = { ...m };
+      if (mCopy.awayTeam === awayName || mCopy.awayTeamName === awayName) {
+        mCopy.awayTeamLogo = awayLogo;
+        mCopy.awayLogo = awayLogo;
+      }
+      if (mCopy.homeTeam === awayName || mCopy.homeTeamName === awayName) {
+        mCopy.homeTeamLogo = awayLogo;
+      }
+      if (mCopy.homeTeam === homeName || mCopy.homeTeamName === homeName) {
+        mCopy.homeTeamLogo = homeLogo;
+      }
+      if (mCopy.awayTeam === homeName || mCopy.awayTeamName === homeName) {
+        mCopy.awayTeamLogo = homeLogo;
+        mCopy.awayLogo = homeLogo;
+      }
+      return mCopy;
+    });
+
     // Keep schedule item opponent names in sync with match data
-    if (match.category && match.awayTeam) {
+    if (normalizedMatch.category && normalizedMatch.awayTeam) {
       cachedDb.schedule = cachedDb.schedule.map(item => {
-        if (match.category === 'DAMER' && (item.title.toLowerCase().includes('damer') || item.id === 'sched-2')) {
+        if (normalizedMatch.category === 'DAMER' && (item.title.toLowerCase().includes('damer') || item.id === 'sched-2')) {
           return {
             ...item,
-            title: `AGF Damer vs. ${match.awayTeam}`,
+            title: `AGF Damer vs. ${normalizedMatch.awayTeam}`,
           };
         }
-        if (match.category === 'HERRER' && (item.title.toLowerCase().includes('herrer') || item.id === 'sched-4')) {
+        if (normalizedMatch.category === 'HERRER' && (item.title.toLowerCase().includes('herrer') || item.id === 'sched-4')) {
           return {
             ...item,
-            title: `AGF Herrer vs. ${match.awayTeam}`,
+            title: `AGF Herrer vs. ${normalizedMatch.awayTeam}`,
           };
         }
         return item;

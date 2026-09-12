@@ -365,6 +365,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose, ini
     }
   };
 
+  const handleTeamLogoFileChange = (match: Match, team: 'home' | 'away', e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        if (typeof reader.result === 'string') {
+          const logo = reader.result;
+          if (team === 'home') {
+            await dataService.saveMatch({ ...match, homeTeamLogo: logo });
+          } else {
+            await dataService.saveMatch({ ...match, awayTeamLogo: logo, awayLogo: logo });
+          }
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const isAdmin = session?.role === 'ADMIN' || sessionStorage.getItem('agf_admin_auth') === 'true';
   const isStaff = session?.role === 'STAFF';
 
@@ -1045,140 +1063,456 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose, ini
 
         {/* ================= SECTION: KAMPE ================= */}
         {currentSection === 'kampe' && (
-          <div className="space-y-3">
-            <h3 className="font-bold text-sm text-[#081326] px-1 uppercase tracking-wider">
-              Dagens Kampe & Live Stilling
-            </h3>
-            {db.matches.map((match) => (
-              <div key={match.id} className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-black text-xs uppercase px-2 py-0.5 rounded bg-[#081326] text-white">
-                    {match.category}
-                  </span>
-                  <span className="text-xs text-gray-500 font-semibold">{match.league} · kl. {match.time}</span>
-                </div>
-
-                <div className="font-bold text-base text-[#081326]">
-                  {match.homeTeam} vs. {match.awayTeam}
-                </div>
-
-                {/* Score Controls */}
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                  <div className="text-center">
-                    <span className="text-[10px] text-gray-500 block uppercase font-bold">AGF</span>
-                    <div className="flex items-center gap-2 mt-1">
-                      <button
-                        onClick={() => {
-                          const updated = { ...match, homeScore: Math.max(0, (match.homeScore || 0) - 1) };
-                          dataService.saveMatch(updated);
-                        }}
-                        className="w-7 h-7 bg-white rounded-lg border text-sm font-bold"
-                      >
-                        -
-                      </button>
-                      <span className="font-black text-xl w-6 text-center">{match.homeScore ?? 0}</span>
-                      <button
-                        onClick={() => {
-                          const updated = { ...match, homeScore: (match.homeScore || 0) + 1 };
-                          dataService.saveMatch(updated);
-                        }}
-                        className="w-7 h-7 bg-white rounded-lg border text-sm font-bold"
-                      >
-                        +
-                      </button>
-                    </div>
+          <div className="space-y-4">
+            {/* Header & Logo Status Overview Banner */}
+            <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-xs">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-[#081326] p-1.5 flex items-center justify-center">
+                    <img src="/agf-logo.svg" alt="AGF" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                   </div>
-
-                  <span className="text-gray-400 font-bold text-lg">:</span>
-
-                  <div className="text-center">
-                    <span className="text-[10px] text-gray-500 block uppercase font-bold">{match.awayTeam.substring(0, 8)}</span>
-                    <div className="flex items-center gap-2 mt-1">
-                      <button
-                        onClick={() => {
-                          const updated = { ...match, awayScore: Math.max(0, (match.awayScore || 0) - 1) };
-                          dataService.saveMatch(updated);
-                        }}
-                        className="w-7 h-7 bg-white rounded-lg border text-sm font-bold"
-                      >
-                        -
-                      </button>
-                      <span className="font-black text-xl w-6 text-center">{match.awayScore ?? 0}</span>
-                      <button
-                        onClick={() => {
-                          const updated = { ...match, awayScore: (match.awayScore || 0) + 1 };
-                          dataService.saveMatch(updated);
-                        }}
-                        className="w-7 h-7 bg-white rounded-lg border text-sm font-bold"
-                      >
-                        +
-                      </button>
-                    </div>
+                  <div>
+                    <h3 className="font-black text-sm uppercase tracking-tight text-[#081326]">
+                      Officielle Klublogoer & Matchday Kampe
+                    </h3>
+                    <p className="text-[11px] text-gray-500 font-medium">
+                      Administrér hold, modstanderlogoer, stilling og live-links.
+                    </p>
                   </div>
                 </div>
-
-                {/* Status selector */}
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
-                    Kampstatus:
-                  </label>
-                  <div className="grid grid-cols-3 gap-1.5 text-xs font-bold">
-                    {(['upcoming', 'live', 'halftime', 'second_half', 'finished'] as const).map((st) => (
-                      <button
-                        key={st}
-                        onClick={() => dataService.saveMatch({ ...match, status: st })}
-                        className={`py-1.5 px-2 rounded-lg border text-center uppercase tracking-tight text-[10px] ${
-                          match.status === st
-                            ? 'bg-[#081326] text-white border-[#081326]'
-                            : 'bg-white text-gray-700 border-gray-200'
-                        }`}
-                      >
-                        {st === 'upcoming'
-                          ? 'Kommende'
-                          : st === 'live'
-                          ? '1. Halvleg'
-                          : st === 'halftime'
-                          ? 'Pause'
-                          : st === 'second_half'
-                          ? '2. Halvleg'
-                          : 'Afsluttet'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Live Match URL (Flashscore, tophaandbold.dk, etc.) */}
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1 flex items-center justify-between">
-                    <span>Live match URL (ekstern livescore):</span>
-                    <span className="text-[10px] text-gray-400 font-normal">Valgfri</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      value={match.liveMatchUrl || ''}
-                      onChange={(e) => dataService.saveMatch({ ...match, liveMatchUrl: e.target.value })}
-                      placeholder="https://tophaandbold.dk/kampe"
-                      className="flex-1 px-3 py-1.5 text-xs font-mono bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:border-[#081326] outline-hidden font-medium"
-                    />
-                    {match.liveMatchUrl && (
-                      <a
-                        href={match.liveMatchUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs flex items-center gap-1"
-                        title="Test link"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    Når denne URL er udfyldt, vises knappen <strong>"FØLG KAMPEN LIVE"</strong> på kampkortet for tilskuere.
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newMatch: Match = {
+                      id: `match-${Date.now()}`,
+                      matchdayId: activeMatchday?.id || 'matchday-1',
+                      category: 'DAMER',
+                      league: '1. Division',
+                      homeTeam: 'AGF Håndbold',
+                      homeTeamName: 'AGF Håndbold',
+                      homeTeamLogo: '/agf-logo.svg',
+                      awayTeam: 'Ny Modstander',
+                      awayTeamName: 'Ny Modstander',
+                      awayTeamLogo: '',
+                      awayLogo: '',
+                      time: '14:00',
+                      venue: 'Ceres Arena',
+                      status: 'upcoming',
+                    };
+                    dataService.saveMatch(newMatch);
+                  }}
+                  className="px-3 py-1.5 bg-[#081326] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 hover:bg-black transition-all cursor-pointer shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Tilføj kamp</span>
+                </button>
               </div>
-            ))}
+
+              {/* Opponent Logo Status Audit Grid */}
+              <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="flex items-center gap-2.5 p-2 rounded-xl bg-gray-50 border border-gray-100">
+                  <div className="w-8 h-8 rounded-lg bg-white border border-gray-200 p-1 flex items-center justify-center shrink-0">
+                    <img src="/agf-logo.svg" alt="AGF Håndbold" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-black text-[#081326] truncate">AGF Håndbold</span>
+                      <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-800 text-[9px] font-black uppercase">
+                        Aktiv
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-gray-400 font-medium">
+                      Officielt vektorlogo installeret (/agf-logo.svg)
+                    </p>
+                  </div>
+                </div>
+
+                {Array.from(new Set(db.matches.map((m) => (m.awayTeamName || m.awayTeam) as string))).map((teamName: string) => {
+                  const sampleMatch = db.matches.find((m) => (m.awayTeamName || m.awayTeam) === teamName);
+                  const hasLogo = Boolean(sampleMatch?.awayTeamLogo || sampleMatch?.awayLogo);
+                  const logoUrl = sampleMatch?.awayTeamLogo || sampleMatch?.awayLogo;
+                  const initials =
+                    teamName
+                      .replace(/kfums?|haandbold|håndbold/gi, '')
+                      .trim()
+                      .split(/[\s-]+/)
+                      .filter(Boolean)
+                      .map((w) => w[0])
+                      .join('')
+                      .substring(0, 3)
+                      .toUpperCase() || 'UDE';
+
+                  return (
+                    <div key={teamName} className="flex items-center gap-2.5 p-2 rounded-xl bg-gray-50 border border-gray-100">
+                      <div className="w-8 h-8 rounded-lg bg-white border border-gray-200 p-1 flex items-center justify-center shrink-0">
+                        {hasLogo ? (
+                          <img src={logoUrl} alt={teamName} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="w-full h-full rounded bg-[#081326] text-white flex items-center justify-center font-black text-[10px]">
+                            {initials}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-black text-[#081326] truncate">{teamName}</span>
+                          {hasLogo ? (
+                            <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-800 text-[9px] font-black uppercase">
+                              Logo aktivt
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-black uppercase">
+                              Kræver upload
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-500 font-medium">
+                          {hasLogo ? 'Officielt logo uploaded og synkroniseret' : 'Viser automatisk ren tekst-fallback'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* List of Matches with Full Controls */}
+            {db.matches.map((match) => {
+              const homeName = match.homeTeamName || match.homeTeam || 'AGF Håndbold';
+              const homeLogo = match.homeTeamLogo || '/agf-logo.svg';
+              const awayName = match.awayTeamName || match.awayTeam || 'Udehold';
+              const awayLogo = match.awayTeamLogo || match.awayLogo || '';
+
+              const awayInitials =
+                awayName
+                  .replace(/kfums?|haandbold|håndbold/gi, '')
+                  .trim()
+                  .split(/[\s-]+/)
+                  .filter(Boolean)
+                  .map((w) => w[0])
+                  .join('')
+                  .substring(0, 3)
+                  .toUpperCase() || 'UDE';
+
+              return (
+                <div key={match.id} className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-200 shadow-sm space-y-4">
+                  {/* Top Bar: Category, League, Time, Venue & Delete */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <div className="flex rounded-lg bg-gray-100 p-0.5 text-xs font-black">
+                        {(['DAMER', 'HERRER'] as const).map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => dataService.saveMatch({ ...match, category: cat })}
+                            className={`px-2.5 py-1 rounded-md text-[10px] uppercase font-black transition-all ${
+                              match.category === cat
+                                ? 'bg-[#081326] text-white shadow-xs'
+                                : 'text-gray-500 hover:text-[#081326]'
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="text"
+                        value={match.league || ''}
+                        onChange={(e) => dataService.saveMatch({ ...match, league: e.target.value })}
+                        placeholder="Række f.eks. 1. Division"
+                        className="px-2 py-1 text-xs bg-gray-50 border border-gray-200 rounded-md font-semibold text-gray-700 w-32 sm:w-40"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 text-xs">
+                        <Clock className="w-3.5 h-3.5 text-gray-400" />
+                        <input
+                          type="text"
+                          value={match.time || ''}
+                          onChange={(e) => dataService.saveMatch({ ...match, time: e.target.value })}
+                          placeholder="13:00"
+                          className="px-2 py-1 text-xs bg-gray-50 border border-gray-200 rounded-md font-mono font-bold text-gray-800 w-16 text-center"
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        value={match.venue || ''}
+                        onChange={(e) => dataService.saveMatch({ ...match, venue: e.target.value })}
+                        placeholder="Ceres Arena"
+                        className="px-2 py-1 text-xs bg-gray-50 border border-gray-200 rounded-md text-gray-700 w-28 hidden sm:block"
+                      />
+                      {db.matches.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm(`Slet kampen ${homeName} vs. ${awayName}?`)) {
+                              dataService.deleteMatch(match.id);
+                            }
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                          title="Slet kamp"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Hold & Logo Konfiguration */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3.5 bg-gray-50/70 rounded-xl border border-gray-200/70">
+                    {/* Hjemmehold */}
+                    <div className="space-y-2">
+                      <label className="block text-[11px] font-black text-gray-600 uppercase tracking-wider">
+                        Hjemmehold (AGF Håndbold)
+                      </label>
+                      <input
+                        type="text"
+                        value={homeName}
+                        onChange={(e) => dataService.saveMatch({ ...match, homeTeamName: e.target.value, homeTeam: e.target.value })}
+                        className="w-full px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-xl focus:border-[#081326] outline-hidden"
+                      />
+
+                      <div className="flex items-center gap-3 pt-1">
+                        <div className="w-12 h-12 rounded-xl bg-white border border-gray-200 p-1.5 flex items-center justify-center shrink-0 shadow-2xs">
+                          <img
+                            src={homeLogo}
+                            alt={homeName}
+                            className="w-full h-full object-contain"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = '/agf-logo.svg';
+                            }}
+                          />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <span className="text-[10px] text-gray-500 font-medium block">
+                            Officielt AGF Håndbold klublogo
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => dataService.saveMatch({ ...match, homeTeamLogo: '/agf-logo.svg' })}
+                              className="px-2 py-1 text-[10px] font-bold bg-white border border-gray-200 hover:bg-gray-100 rounded-lg text-[#081326] transition-all cursor-pointer"
+                            >
+                              Standard AGF (/agf-logo.svg)
+                            </button>
+                            <label className="px-2 py-1 text-[10px] font-bold bg-white border border-gray-200 hover:bg-gray-100 rounded-lg text-gray-700 transition-all cursor-pointer inline-flex items-center gap-1">
+                              <Upload className="w-3 h-3 text-gray-500" />
+                              <span>Skift</span>
+                              <input
+                                type="file"
+                                accept="image/png,image/svg+xml,image/webp,image/jpeg"
+                                className="hidden"
+                                onChange={(e) => handleTeamLogoFileChange(match, 'home', e)}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Udehold / Modstander */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[11px] font-black text-gray-600 uppercase tracking-wider">
+                          Udehold / Modstander
+                        </label>
+                        {awayLogo ? (
+                          <span className="text-[9px] font-black uppercase text-green-700 bg-green-100 px-1.5 py-0.5 rounded">
+                            Officielt logo sat
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-black uppercase text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                            Tekst-fallback aktiv
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        value={awayName}
+                        onChange={(e) => dataService.saveMatch({ ...match, awayTeamName: e.target.value, awayTeam: e.target.value })}
+                        className="w-full px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-xl focus:border-[#081326] outline-hidden"
+                      />
+
+                      <div className="flex items-center gap-3 pt-1">
+                        <div className="w-12 h-12 rounded-xl bg-white border border-gray-200 p-1.5 flex items-center justify-center shrink-0 shadow-2xs">
+                          {awayLogo ? (
+                            <img
+                              src={awayLogo}
+                              alt={awayName}
+                              className="w-full h-full object-contain"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div className="w-full h-full rounded-lg bg-[#081326] text-white flex flex-col items-center justify-center p-0.5 border border-gray-800">
+                              <span className="font-black text-xs leading-none">{awayInitials}</span>
+                              <span className="text-[6px] text-gray-400 font-bold uppercase mt-0.5">UDE</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex-1 space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <label className="px-2.5 py-1 text-[10px] font-bold bg-[#081326] text-white hover:bg-black rounded-lg transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs">
+                              <Upload className="w-3 h-3" />
+                              <span>Upload logo (SVG/PNG)</span>
+                              <input
+                                type="file"
+                                accept="image/png,image/svg+xml,image/webp,image/jpeg"
+                                className="hidden"
+                                onChange={(e) => handleTeamLogoFileChange(match, 'away', e)}
+                              />
+                            </label>
+                            {awayLogo && (
+                              <button
+                                type="button"
+                                onClick={() => dataService.saveMatch({ ...match, awayTeamLogo: '', awayLogo: '' })}
+                                className="px-2 py-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-all cursor-pointer"
+                              >
+                                Fjern logo
+                              </button>
+                            )}
+                          </div>
+
+                          <input
+                            type="text"
+                            value={awayLogo}
+                            onChange={(e) => dataService.saveMatch({ ...match, awayTeamLogo: e.target.value, awayLogo: e.target.value })}
+                            placeholder="eller indsæt URL / filsti..."
+                            className="w-full px-2 py-1 text-[10px] font-mono bg-white border border-gray-200 rounded-lg text-gray-600"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-gray-400 italic">
+                        * Logoet gemmes på holdet og slår igennem på alle kampe, hvor {awayName} optræder.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Score Controls */}
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                    <div className="text-center">
+                      <span className="text-[10px] text-gray-500 block uppercase font-bold">{homeName.substring(0, 10)}</span>
+                      <div className="flex items-center gap-2 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = { ...match, homeScore: Math.max(0, (match.homeScore || 0) - 1) };
+                            dataService.saveMatch(updated);
+                          }}
+                          className="w-7 h-7 bg-white rounded-lg border text-sm font-bold hover:bg-gray-100 cursor-pointer"
+                        >
+                          -
+                        </button>
+                        <span className="font-black text-xl w-6 text-center">{match.homeScore ?? 0}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = { ...match, homeScore: (match.homeScore || 0) + 1 };
+                            dataService.saveMatch(updated);
+                          }}
+                          className="w-7 h-7 bg-white rounded-lg border text-sm font-bold hover:bg-gray-100 cursor-pointer"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    <span className="text-gray-400 font-bold text-lg">:</span>
+
+                    <div className="text-center">
+                      <span className="text-[10px] text-gray-500 block uppercase font-bold">{awayName.substring(0, 10)}</span>
+                      <div className="flex items-center gap-2 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = { ...match, awayScore: Math.max(0, (match.awayScore || 0) - 1) };
+                            dataService.saveMatch(updated);
+                          }}
+                          className="w-7 h-7 bg-white rounded-lg border text-sm font-bold hover:bg-gray-100 cursor-pointer"
+                        >
+                          -
+                        </button>
+                        <span className="font-black text-xl w-6 text-center">{match.awayScore ?? 0}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = { ...match, awayScore: (match.awayScore || 0) + 1 };
+                            dataService.saveMatch(updated);
+                          }}
+                          className="w-7 h-7 bg-white rounded-lg border text-sm font-bold hover:bg-gray-100 cursor-pointer"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status selector */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
+                      Kampstatus:
+                    </label>
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 text-xs font-bold">
+                      {(['upcoming', 'live', 'halftime', 'second_half', 'finished'] as const).map((st) => (
+                        <button
+                          key={st}
+                          type="button"
+                          onClick={() => dataService.saveMatch({ ...match, status: st })}
+                          className={`py-1.5 px-2 rounded-lg border text-center uppercase tracking-tight text-[10px] transition-all cursor-pointer ${
+                            match.status === st
+                              ? 'bg-[#081326] text-white border-[#081326] shadow-xs'
+                              : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          {st === 'upcoming'
+                            ? 'Kommende'
+                            : st === 'live'
+                            ? '1. Halvleg'
+                            : st === 'halftime'
+                            ? 'Pause'
+                            : st === 'second_half'
+                            ? '2. Halvleg'
+                            : 'Afsluttet'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Live Match URL (Flashscore, tophaandbold.dk, etc.) */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1 flex items-center justify-between">
+                      <span>Live match URL (ekstern livescore):</span>
+                      <span className="text-[10px] text-gray-400 font-normal">Valgfri</span>
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        value={match.liveMatchUrl || ''}
+                        onChange={(e) => dataService.saveMatch({ ...match, liveMatchUrl: e.target.value })}
+                        placeholder="https://tophaandbold.dk/kampe"
+                        className="flex-1 px-3 py-1.5 text-xs font-mono bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:border-[#081326] outline-hidden font-medium"
+                      />
+                      {match.liveMatchUrl && (
+                        <a
+                          href={match.liveMatchUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs flex items-center gap-1"
+                          title="Test link"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Når denne URL er udfyldt, vises knappen <strong>"FØLG KAMPEN LIVE"</strong> på kampkortet for tilskuere.
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 

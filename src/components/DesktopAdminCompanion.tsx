@@ -67,8 +67,8 @@ export const DesktopAdminCompanion: React.FC<DesktopAdminCompanionProps> = ({
       {/* Top Header */}
       <div className="h-16 border-b border-gray-100 flex items-center justify-between px-6 xl:px-8 flex-shrink-0 bg-white">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-[#081326] rounded-lg flex items-center justify-center text-white text-xs font-black">
-            AD
+          <div className="w-8 h-8 bg-white rounded-lg border border-gray-200 p-1 flex items-center justify-center shadow-2xs">
+            <img src="/agf-logo.svg" alt="AGF Håndbold" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
           </div>
           <h1 className="font-black uppercase tracking-tight text-xl text-[#081326]">
             Admin Dashboard

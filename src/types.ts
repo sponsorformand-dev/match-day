@@ -36,8 +36,12 @@ export interface Match {
   category: MatchCategory;
   league: string;
   homeTeam: string;
+  homeTeamName?: string;
+  homeTeamLogo?: string;
   awayTeam: string;
-  awayLogo?: string;
+  awayTeamName?: string;
+  awayTeamLogo?: string;
+  awayLogo?: string; // backwards compatibility alias for awayTeamLogo
   time: string;
   status: MatchStatus;
   venue?: string;

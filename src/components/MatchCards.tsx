@@ -47,13 +47,23 @@ export const MatchCards: React.FC<MatchCardsProps> = ({
             ? players.find((p) => p.id === session.winnerPlayerId)
             : null;
 
-        // Opponent short acronym
-        const awayInitials = match.awayTeam
-          .split(' ')
-          .map((w) => w[0])
-          .join('')
-          .substring(0, 3)
-          .toUpperCase();
+        // Teams config
+        const homeName = match.homeTeamName || match.homeTeam || 'AGF Håndbold';
+        const homeLogo = match.homeTeamLogo || '/agf-logo.svg';
+        const awayName = match.awayTeamName || match.awayTeam || 'Udehold';
+        const awayLogo = match.awayTeamLogo || match.awayLogo || '';
+
+        // Opponent clean initials fallback
+        const awayInitials =
+          awayName
+            .replace(/kfums?|haandbold|håndbold/gi, '')
+            .trim()
+            .split(/[\s-]+/)
+            .filter(Boolean)
+            .map((w) => w[0])
+            .join('')
+            .substring(0, 3)
+            .toUpperCase() || 'UDE';
 
         return (
           <div
@@ -80,16 +90,19 @@ export const MatchCards: React.FC<MatchCardsProps> = ({
             <div className="p-4 sm:p-5 flex items-center justify-between gap-2 sm:gap-4">
               {/* Home Team (AGF Håndbold) */}
               <div className="flex-1 flex flex-col items-center text-center">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center p-2 mb-2 shadow-2xs">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white border border-gray-100 flex items-center justify-center p-2 mb-2 shadow-2xs">
                   <img
-                    src="/agf-logo.svg"
-                    alt="AGF Håndbold"
+                    src={homeLogo}
+                    alt={homeName}
                     className="w-full h-full object-contain"
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = '/agf-logo.svg';
+                    }}
                   />
                 </div>
                 <div className="font-black text-sm sm:text-base text-[#081326] uppercase tracking-tight leading-tight">
-                  {match.homeTeam}
+                  {homeName}
                 </div>
                 <span className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">
                   Aarhus
@@ -110,22 +123,27 @@ export const MatchCards: React.FC<MatchCardsProps> = ({
 
               {/* Away Team */}
               <div className="flex-1 flex flex-col items-center text-center">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center p-2 mb-2 shadow-2xs">
-                  {match.awayLogo ? (
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white border border-gray-100 flex items-center justify-center p-2 mb-2 shadow-2xs">
+                  {awayLogo ? (
                     <img
-                      src={match.awayLogo}
-                      alt={match.awayTeam}
+                      src={awayLogo}
+                      alt={awayName}
                       className="w-full h-full object-contain"
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className="w-full h-full rounded-xl bg-[#081326] text-white flex items-center justify-center font-black text-xs sm:text-sm tracking-wider">
-                      {awayInitials || 'UDE'}
+                    <div className="w-full h-full rounded-xl bg-[#081326] text-white flex flex-col items-center justify-center p-1 border border-gray-800 shadow-inner">
+                      <span className="font-black text-xs sm:text-sm tracking-wider leading-none">
+                        {awayInitials}
+                      </span>
+                      <span className="text-[7px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                        UDE
+                      </span>
                     </div>
                   )}
                 </div>
                 <div className="font-black text-sm sm:text-base text-[#081326] uppercase tracking-tight leading-tight">
-                  {match.awayTeam}
+                  {awayName}
                 </div>
                 <span className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">
                   Udehold
