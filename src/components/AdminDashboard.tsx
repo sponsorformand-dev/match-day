@@ -53,6 +53,8 @@ import {
   ExternalLink,
   Upload,
   Image as ImageIcon,
+  ChevronRight,
+  ArrowRight,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -216,6 +218,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose, ini
   // Canonical App URL state for Feature 21
   const [canonicalUrlInput, setCanonicalUrlInput] = useState<string>(() => db.canonicalAppUrl || '');
   const [canonicalUrlSaved, setCanonicalUrlSaved] = useState<boolean>(false);
+
+  // "Alle indstillinger" mobile full configuration area state
+  const [isAllSettingsOpen, setIsAllSettingsOpen] = useState<boolean>(false);
+  const [allSettingsSearch, setAllSettingsSearch] = useState<string>('');
+  const [quickActionStatus, setQuickActionStatus] = useState<string | null>(null);
 
   // Looad partnerlink state
   const [looadUrlInput, setLooadUrlInput] = useState<string>(
@@ -618,6 +625,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose, ini
   }
 
   const activeMatchday = db.matchdays.find((m) => m.id === db.activeMatchdayId) || db.matchdays[0];
+  const isVotingOpen = db.votingSessions.some((s) => s.status === 'open');
+  const activeCoupons = db.coupons.filter((c) => c.active).length;
 
   const ADMIN_ONLY_SECTIONS: AdminSection[] = [
     'matchday',
@@ -631,6 +640,100 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose, ini
     'partnere',
     'beskeder',
     'analytics',
+  ];
+
+  const allSectionsList = [
+    {
+      id: 'matchday' as AdminSection,
+      label: 'Matchday Stamdata',
+      description: 'Dato, arena, aktiv kampdag, QR-delingslink og hurtigstyring',
+      icon: Calendar,
+      adminOnly: true,
+    },
+    {
+      id: 'kampe' as AdminSection,
+      label: 'Kampe & Hold',
+      description: 'Modstandere, logoer, TopHåndbold livescore og stilling',
+      icon: Flame,
+      adminOnly: true,
+    },
+    {
+      id: 'program' as AdminSection,
+      label: 'Dagens Program',
+      description: 'Tidsplan for Ceres Arena, tidslinje og live aktiviteter',
+      icon: Clock,
+      adminOnly: true,
+    },
+    {
+      id: 'stem' as AdminSection,
+      label: 'Kampens Spiller',
+      description: 'Afstemningsrunder, sponsorer, start/stop stemmer',
+      icon: Star,
+      adminOnly: true,
+    },
+    {
+      id: 'kiosk' as AdminSection,
+      label: 'Kiosk & Produkter',
+      description: 'Øl, sodavand, mad, priser og sortimentoversigt',
+      icon: Beer,
+      adminOnly: true,
+    },
+    {
+      id: 'kuponer' as AdminSection,
+      label: 'Kuponer & Pausetilbud',
+      description: 'Pausetilbud, rabatter og indløsningsstatistik',
+      icon: Tag,
+      adminOnly: true,
+    },
+    {
+      id: 'konkurrencer' as AdminSection,
+      label: 'Konkurrencer',
+      description: 'Skudmåler, resultater og arena-leaderboard',
+      icon: Trophy,
+      adminOnly: false,
+    },
+    {
+      id: 'tilmelding' as AdminSection,
+      label: 'Looad Partnerlink',
+      description: 'Støttekampagne URL og banner for supportere',
+      icon: Zap,
+      adminOnly: true,
+    },
+    {
+      id: 'partnere' as AdminSection,
+      label: 'Partnere & Sponsorer',
+      description: 'Sponsorlogoer, kategorier og eksponering i appen',
+      icon: HeartHandshake,
+      adminOnly: true,
+    },
+    {
+      id: 'beskeder' as AdminSection,
+      label: 'Driftsbeskeder',
+      description: 'Push-meddelelser og bannerannonceringer til hallen',
+      icon: Megaphone,
+      adminOnly: true,
+    },
+    {
+      id: 'analytics' as AdminSection,
+      label: 'Statistik & Forbrug',
+      description: 'Besøgstal, kuponforbrug og stemmestatistik',
+      icon: BarChart3,
+      adminOnly: true,
+    },
+    {
+      id: 'staff' as AdminSection,
+      label: 'Sessioner & Personale',
+      description: 'Koder, aktive 12-timers sessioner og enheder',
+      icon: Users,
+      adminOnly: true,
+    },
+    {
+      id: 'scanner' as AdminSection,
+      label: 'Kuponscanner',
+      description: 'QR-scanner for kioskpersonale til kuponindløsning',
+      icon: ScanLine,
+      adminOnly: false,
+    },
   ];
 
   const navItems = [
@@ -692,8 +795,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose, ini
         </div>
       </div>
 
-      {/* Horizontal Nav Tabs for Mobile Staff */}
-      <div className="bg-white border-b border-gray-200 px-2 py-1.5 flex gap-1 overflow-x-auto scrollbar-none flex-shrink-0">
+      {/* Horizontal Nav Tabs for Mobile / Tablet */}
+      <div className="bg-white border-b border-gray-200 px-2 py-1.5 flex items-center gap-1.5 overflow-x-auto scrollbar-none flex-shrink-0">
+        {/* Quick Access to Full Configuration Hub without scrolling */}
+        <button
+          type="button"
+          id="admin-nav-alle-indstillinger"
+          onClick={() => setIsAllSettingsOpen(true)}
+          className="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider bg-red-600 hover:bg-red-700 text-white flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer transition-all active:scale-95"
+          title="Åbn alle indstillinger"
+        >
+          <Sliders className="w-3.5 h-3.5" />
+          <span>Alle indstillinger</span>
+        </button>
+
+        <div className="h-4 w-px bg-gray-200 shrink-0 mx-0.5" />
+
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentSection === item.id;
@@ -767,6 +884,138 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose, ini
         {/* ================= SECTION: MATCHDAY ================= */}
         {currentSection === 'matchday' && (
           <div className="space-y-4">
+            {/* Quick Actions Panel & Prominent "ALLE INDSTILLINGER" Card for Mobile & Desktop */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-200 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-red-600" />
+                  <h3 className="font-black text-xs uppercase tracking-wider text-[#081326]">
+                    Hurtige Handlinger & Overblik
+                  </h3>
+                </div>
+                {quickActionStatus && (
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 animate-fade-in">
+                    {quickActionStatus}
+                  </span>
+                )}
+              </div>
+
+              {/* Quick Actions grid */}
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  id="admin-quick-vote-toggle"
+                  onClick={async () => {
+                    if (!isAdmin) {
+                      setCurrentSection('stem');
+                      return;
+                    }
+                    const session = db.votingSessions[0];
+                    if (!session) return;
+                    const nextStatus = session.status === 'open' ? 'closed' : 'open';
+                    await dataService.saveVotingSession({ ...session, status: nextStatus });
+                    setQuickActionStatus(`Afstemning ${nextStatus === 'open' ? 'åben' : 'lukket'}`);
+                    setTimeout(() => setQuickActionStatus(null), 3000);
+                  }}
+                  className="p-2.5 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-left transition-all cursor-pointer flex flex-col justify-between min-h-[68px] active:scale-[0.98]"
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <Star className="w-3.5 h-3.5 text-amber-500" />
+                    <span className={`w-2 h-2 rounded-full ${isVotingOpen ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
+                  </div>
+                  <div>
+                    <span className="block text-[11px] font-black text-[#081326] leading-tight">
+                      Kampens Spiller
+                    </span>
+                    <span className="block text-[10px] text-gray-500 mt-0.5">
+                      {isVotingOpen ? 'Åben nu' : 'Lukket'}
+                    </span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  id="admin-quick-coupon-toggle"
+                  onClick={async () => {
+                    if (!isAdmin) {
+                      setCurrentSection('kuponer');
+                      return;
+                    }
+                    const anyActive = db.coupons.some((c) => c.active);
+                    for (const c of db.coupons) {
+                      await dataService.saveCoupon({ ...c, active: !anyActive });
+                    }
+                    setQuickActionStatus(`Pausetilbud ${!anyActive ? 'aktiveret' : 'deaktiveret'}`);
+                    setTimeout(() => setQuickActionStatus(null), 3000);
+                  }}
+                  className="p-2.5 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-left transition-all cursor-pointer flex flex-col justify-between min-h-[68px] active:scale-[0.98]"
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <Tag className="w-3.5 h-3.5 text-rose-500" />
+                    <span className={`w-2 h-2 rounded-full ${activeCoupons > 0 ? 'bg-red-500' : 'bg-gray-400'}`} />
+                  </div>
+                  <div>
+                    <span className="block text-[11px] font-black text-[#081326] leading-tight">
+                      Pausetilbud
+                    </span>
+                    <span className="block text-[10px] text-gray-500 mt-0.5">
+                      {activeCoupons > 0 ? `${activeCoupons} aktive` : 'Deaktiveret'}
+                    </span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  id="admin-quick-scanner-link"
+                  onClick={() => setCurrentSection('scanner')}
+                  className="p-2.5 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 text-left transition-all cursor-pointer flex flex-col justify-between min-h-[68px] active:scale-[0.98]"
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <ScanLine className="w-3.5 h-3.5 text-blue-600" />
+                    <span className="text-[9px] font-black uppercase text-blue-700 bg-blue-50 px-1 rounded">QR</span>
+                  </div>
+                  <div>
+                    <span className="block text-[11px] font-black text-[#081326] leading-tight">
+                      Kuponscanner
+                    </span>
+                    <span className="block text-[10px] text-gray-500 mt-0.5">
+                      Scan i kiosk
+                    </span>
+                  </div>
+                </button>
+              </div>
+
+              {/* Prominent clearly visible button/card: "ALLE INDSTILLINGER" */}
+              <button
+                type="button"
+                id="btn-alle-indstillinger"
+                onClick={() => setIsAllSettingsOpen(true)}
+                className="w-full p-3.5 sm:p-4 rounded-2xl bg-[#081326] hover:bg-black text-white flex items-center justify-between transition-all cursor-pointer shadow-md hover:shadow-lg active:scale-[0.99] border border-white/10 group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                    <Sliders className="w-5 h-5" />
+                  </div>
+                  <div className="text-left">
+                    <div className="flex items-center gap-2">
+                      <span className="block font-black text-sm uppercase tracking-wider text-white">
+                        ALLE INDSTILLINGER
+                      </span>
+                      <span className="text-[9px] font-black uppercase tracking-wider bg-red-600/90 text-white px-2 py-0.5 rounded-full">
+                        13 sektioner
+                      </span>
+                    </div>
+                    <span className="block text-[11px] text-gray-300 mt-0.5 font-medium">
+                      Tryk for at åbne Kampe, Program, Partnere, Kiosk, Stem m.fl.
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 bg-white/10 group-hover:bg-white/20 px-3 py-1.5 rounded-xl text-xs font-bold text-gray-200 shrink-0 ml-2">
+                  <span>Åbn</span>
+                  <ChevronRight className="w-4 h-4 text-white" />
+                </div>
+              </button>
+            </div>
             <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-bold text-base text-[#081326] flex items-center gap-2">
@@ -3778,6 +4027,152 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose, ini
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: ALLE INDSTILLINGER & KONFIGURATION (MOBILE & DESKTOP) ================= */}
+      {isAllSettingsOpen && (
+        <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
+          <div
+            className="bg-[#F6F6F4] rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[92vh] flex flex-col shadow-2xl border border-gray-200 overflow-hidden animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-[#081326] text-white p-4 sm:p-5 flex items-center justify-between shrink-0 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <Sliders className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="font-black text-base uppercase tracking-wider text-white flex items-center gap-2">
+                    <span>ALLE INDSTILLINGER</span>
+                    <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full text-gray-200">
+                      {allSectionsList.length} Sektioner
+                    </span>
+                  </h2>
+                  <p className="text-[11px] text-gray-300">
+                    Fuld konfiguration og administration af Ceres Arena matchday
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAllSettingsOpen(false);
+                  setAllSettingsSearch('');
+                }}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-gray-300 hover:text-white cursor-pointer transition-colors"
+                title="Luk"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Filter Search */}
+            <div className="p-3 bg-white border-b border-gray-200 shrink-0">
+              <input
+                type="text"
+                value={allSettingsSearch}
+                onChange={(e) => setAllSettingsSearch(e.target.value)}
+                placeholder="Søg i indstillinger (kampe, kiosk, sponsorer, kuponer...)"
+                className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-gray-50 border border-gray-200 focus:bg-white focus:border-[#081326] outline-hidden font-medium"
+              />
+            </div>
+
+            {/* All Settings Grid / List */}
+            <div className="p-3 sm:p-4 overflow-y-auto space-y-2.5 flex-1">
+              {allSectionsList
+                .filter((item) => {
+                  if (!allSettingsSearch.trim()) return true;
+                  const query = allSettingsSearch.toLowerCase();
+                  return (
+                    item.label.toLowerCase().includes(query) ||
+                    item.description.toLowerCase().includes(query)
+                  );
+                })
+                .map((item) => {
+                  const Icon = item.icon;
+                  const isCurrent = currentSection === item.id;
+                  const isRestricted = item.adminOnly && !isAdmin;
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      id={`modal-setting-item-${item.id}`}
+                      onClick={() => {
+                        setCurrentSection(item.id);
+                        setIsAllSettingsOpen(false);
+                        setAllSettingsSearch('');
+                      }}
+                      className={`w-full p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between cursor-pointer active:scale-[0.99] ${
+                        isCurrent
+                          ? 'bg-white border-[#081326] ring-2 ring-[#081326]/20 shadow-sm'
+                          : 'bg-white hover:bg-gray-50 border-gray-200 shadow-2xs'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <div
+                          className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                            isCurrent
+                              ? 'bg-[#081326] text-white shadow-xs'
+                              : isRestricted
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : 'bg-gray-100 text-[#081326]'
+                          }`}
+                        >
+                          <Icon className="w-5 h-5" />
+                        </div>
+
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-xs uppercase tracking-tight text-[#081326]">
+                              {item.label}
+                            </span>
+                            {isCurrent && (
+                              <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-600 text-white px-2 py-0.5 rounded-md">
+                                Aktiv nu
+                              </span>
+                            )}
+                            {isRestricted && (
+                              <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                <Lock className="w-2.5 h-2.5" />
+                                Kræver admin
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-gray-500 mt-1 leading-snug">
+                            {item.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0 ml-2">
+                        <ChevronRight className="w-4 h-4 text-gray-400" />
+                      </div>
+                    </button>
+                  );
+                })}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3.5 bg-white border-t border-gray-200 flex items-center justify-between shrink-0">
+              <span className="text-[11px] text-gray-500 font-medium">
+                {isAdmin ? 'Fuld administratoradgang aktiveret' : 'Personaleadgang (visse sektioner kræver admin)'}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAllSettingsOpen(false);
+                  setAllSettingsSearch('');
+                }}
+                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-[#081326] text-xs font-bold uppercase tracking-wider cursor-pointer"
+              >
+                Luk
+              </button>
+            </div>
           </div>
         </div>
       )}
