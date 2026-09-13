@@ -22,11 +22,13 @@ const SingleCouponCard: React.FC<SingleCouponCardProps> = ({ coupon, redemptions
   const [isActivating, setIsActivating] = useState(false);
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [wasRedeemed, setWasRedeemed] = useState(false);
+  const [localRedemption, setLocalRedemption] = useState<CouponRedemption | null>(null);
 
   // Find user's redemption record for this coupon
-  const myRedemption = redemptions.find(
+  const propRedemption = redemptions.find(
     (r) => r.couponId === coupon.id && r.deviceId === deviceId
   );
+  const myRedemption = propRedemption || localRedemption;
 
   const isRedeemed = Boolean(myRedemption && (myRedemption.status === 'redeemed' || myRedemption.redeemed));
   const isActivated = Boolean(myRedemption && !isRedeemed && myRedemption.status === 'active');
@@ -48,14 +50,14 @@ const SingleCouponCard: React.FC<SingleCouponCardProps> = ({ coupon, redemptions
     }
   }, [isRedeemed, wasRedeemed]);
 
-  // Generate QR Code when activated and not redeemed
+  // Generate QR Code when activated and not redeemed with canonical format
   useEffect(() => {
-    if (!myRedemption || isRedeemed) {
+    if (!myRedemption || isRedeemed || !myRedemption.redemptionToken) {
       setQrUrl('');
       return;
     }
 
-    const payload = `AGF-COUPON:${myRedemption.redemptionToken || myRedemption.id}`;
+    const payload = `AGFCOUPON:${myRedemption.redemptionToken}`;
     QRCode.toDataURL(payload, {
       width: 260,
       margin: 1,
@@ -68,6 +70,15 @@ const SingleCouponCard: React.FC<SingleCouponCardProps> = ({ coupon, redemptions
       .then(setQrUrl)
       .catch((err) => console.error('Error generating coupon QR:', err));
   }, [myRedemption?.id, myRedemption?.redemptionToken, isRedeemed]);
+
+  // Periodic real-time sync while QR code is visible
+  useEffect(() => {
+    if (!isFlipped || isRedeemed) return;
+    const interval = setInterval(() => {
+      dataService.syncFromServer();
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [isFlipped, isRedeemed]);
 
   // Expiration countdown
   useEffect(() => {
@@ -101,18 +112,19 @@ const SingleCouponCard: React.FC<SingleCouponCardProps> = ({ coupon, redemptions
       return;
     }
 
-    // If already activated, toggle flip between front and QR code
-    if (isActivated) {
+    // If already activated and has token, toggle flip between front and QR code
+    if (isActivated && myRedemption?.redemptionToken) {
       setIsFlipped(!isFlipped);
       return;
     }
 
-    // Not activated yet: activate coupon now and flip to reveal QR code
+    // Not activated yet or missing token: activate coupon on server now
     try {
       setIsActivating(true);
       const res = await dataService.activateCoupon(coupon.id);
       setIsActivating(false);
-      if (res.success) {
+      if (res.success && res.redemption && res.redemption.redemptionToken) {
+        setLocalRedemption(res.redemption);
         setIsFlipped(true);
       }
     } catch {

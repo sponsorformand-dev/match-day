@@ -57,7 +57,7 @@ export const CouponsView: React.FC<CouponsViewProps> = ({ coupons, redemptions }
 
   // Generate QR code whenever active redemption changes and is active
   useEffect(() => {
-    if (!activeRedemptionModal) {
+    if (!activeRedemptionModal || !activeRedemptionModal.redemptionToken) {
       setQrCodeDataUrl('');
       return;
     }
@@ -68,8 +68,8 @@ export const CouponsView: React.FC<CouponsViewProps> = ({ coupons, redemptions }
       return;
     }
 
-    // Embed the cryptographically secure token
-    const payload = `AGF-COUPON:${activeRedemptionModal.redemptionToken || activeRedemptionModal.id}`;
+    // Embed the cryptographically secure token using canonical format
+    const payload = `AGFCOUPON:${activeRedemptionModal.redemptionToken}`;
 
     QRCode.toDataURL(payload, {
       width: 400,
@@ -82,7 +82,16 @@ export const CouponsView: React.FC<CouponsViewProps> = ({ coupons, redemptions }
     })
       .then((url) => setQrCodeDataUrl(url))
       .catch((err) => console.error('QR generation error:', err));
-  }, [activeRedemptionModal]);
+  }, [activeRedemptionModal?.id, activeRedemptionModal?.redemptionToken, activeRedemptionModal?.status, activeRedemptionModal?.redeemed]);
+
+  // Periodic sync while QR code modal is open to ensure instant real-time transition to KUPON BRUGT
+  useEffect(() => {
+    if (!activeRedemptionModal || activeRedemptionModal.status === 'redeemed' || activeRedemptionModal.redeemed) return;
+    const interval = setInterval(() => {
+      dataService.syncFromServer();
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [activeRedemptionModal?.id, activeRedemptionModal?.status, activeRedemptionModal?.redeemed]);
 
   // Countdown timer for active unredeemed coupon
   useEffect(() => {
@@ -108,7 +117,7 @@ export const CouponsView: React.FC<CouponsViewProps> = ({ coupons, redemptions }
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [activeRedemptionModal]);
+  }, [activeRedemptionModal?.id, activeRedemptionModal?.status, activeRedemptionModal?.expiresAt]);
 
   const handleActivate = async (coupon: Coupon) => {
     setIsActivating(true);
@@ -117,10 +126,24 @@ export const CouponsView: React.FC<CouponsViewProps> = ({ coupons, redemptions }
     const res = await dataService.activateCoupon(coupon.id);
     setIsActivating(false);
 
-    if (res.success && res.redemption) {
+    if (res.success && res.redemption && res.redemption.redemptionToken) {
       setActiveRedemptionModal(res.redemption);
     } else {
-      setErrorMessage(res.error || 'Kunne ikke aktivere kupon');
+      setErrorMessage(res.error || 'Kunne ikke aktivere kupon på serveren');
+    }
+  };
+
+  const handleOpenActiveModal = async (coupon: Coupon) => {
+    const userRedemption = deviceRedemptions.find((r) => r.couponId === coupon.id);
+    if (userRedemption && userRedemption.redemptionToken) {
+      setActiveRedemptionModal(userRedemption);
+    } else {
+      setIsActivating(true);
+      const res = await dataService.activateCoupon(coupon.id);
+      setIsActivating(false);
+      if (res.success && res.redemption) {
+        setActiveRedemptionModal(res.redemption);
+      }
     }
   };
 
@@ -232,7 +255,7 @@ export const CouponsView: React.FC<CouponsViewProps> = ({ coupons, redemptions }
                     </button>
                   ) : isActiveOnDevice ? (
                     <button
-                      onClick={() => setActiveRedemptionModal(userRedemption)}
+                      onClick={() => handleOpenActiveModal(coupon)}
                       className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black uppercase tracking-wider transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer animate-pulse"
                     >
                       <QrCode className="w-4 h-4" />
@@ -274,12 +297,12 @@ export const CouponsView: React.FC<CouponsViewProps> = ({ coupons, redemptions }
                 <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center mb-3">
                   <CheckCircle className="w-10 h-10" />
                 </div>
-                {/* Specific required copy */}
+                {/* Specific required copy: KUPON BRUGT */}
                 <h3 className="text-2xl font-black text-emerald-700 uppercase tracking-tight">
-                  KUPON INDLØST
+                  KUPON BRUGT
                 </h3>
                 <p className="text-sm font-black text-[#081326] mt-1">
-                  Tak for dit køb i Ceres Arena!
+                  Tak for dit køb i Ceres Arena! Kuponen er indløst.
                 </p>
 
                 {activeRedemptionModal.redeemedAt && (

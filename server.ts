@@ -123,6 +123,33 @@ app.post('/api/db', (req, res) => {
   if (!updatedDb) {
     return res.status(400).json({ error: 'No data provided' });
   }
+
+  // Preserve server-authoritative coupon redemptions and logs so client pushes cannot wipe them
+  const serverRedemptions = inMemoryDb?.couponRedemptions || [];
+  const clientRedemptions = updatedDb.couponRedemptions || [];
+  const mergedMap = new Map<string, any>();
+
+  for (const r of serverRedemptions) {
+    if (r && (r.id || r.redemptionToken)) {
+      mergedMap.set(r.redemptionToken || r.id, r);
+    }
+  }
+  for (const r of clientRedemptions) {
+    const key = r?.redemptionToken || r?.id;
+    if (key && !mergedMap.has(key)) {
+      mergedMap.set(key, r);
+    }
+  }
+  updatedDb.couponRedemptions = Array.from(mergedMap.values());
+
+  const serverLogs = inMemoryDb?.redemptionLogs || [];
+  const clientLogs = updatedDb.redemptionLogs || [];
+  const logMap = new Map<string, any>();
+  for (const log of [...serverLogs, ...clientLogs]) {
+    if (log && log.id) logMap.set(log.id, log);
+  }
+  updatedDb.redemptionLogs = Array.from(logMap.values()).slice(0, 50);
+
   inMemoryDb = updatedDb;
   saveDb(inMemoryDb);
   broadcast('db_updated', inMemoryDb);
@@ -551,12 +578,47 @@ app.post('/api/coupon/activate', (req, res) => {
   res.json({ success: true, redemption });
 });
 
+// Helper to normalize any scanned coupon token or code
+function normalizeCouponToken(raw: any): string {
+  if (!raw) return '';
+  let token = String(raw).trim();
+
+  // Decode URI percent-encoding if present
+  try {
+    if (token.includes('%')) {
+      token = decodeURIComponent(token);
+    }
+  } catch {}
+
+  // Parse if it was scanned as JSON
+  if (token.startsWith('{') && token.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(token);
+      token = parsed.token || parsed.redemptionToken || parsed.id || token;
+    } catch {}
+  }
+
+  // Handle URL format: e.g. https://.../?token=... or /coupon/redeem?token=...
+  if (token.includes('token=')) {
+    const match = token.match(/token=([a-zA-Z0-9_-]+)/);
+    if (match) token = match[1];
+  }
+
+  // Strip canonical prefix AGFCOUPON: or legacy AGF-COUPON: (case-insensitive)
+  token = token.replace(/^(agfcoupon:|agf-coupon:)/i, '').trim();
+
+  // Strip surrounding quotes
+  token = token.replace(/^["']|["']$/g, '').trim();
+
+  return token;
+}
+
 // 6. STAFF ATOMIC QR SCAN REDEMPTION
 // Validates token server-side, checks expiration, single-use idempotency, staff auth, logs audit trail
 app.post('/api/coupon/redeem-scan', (req, res) => {
   const { token, staffPin, staffId, sessionToken } = req.body;
   if (!token) {
-    return res.status(400).json({ status: 'INVALID', error: 'UGYLDIG KUPON', message: 'Ingen QR-kode modtaget' });
+    return res.status(400).json({ status: 'NOT_FOUND', error: 'UGYLDIG KUPON', message: 'Ingen QR-kode modtaget' });
   }
 
   if (!inMemoryDb) inMemoryDb = loadDb();
@@ -592,12 +654,9 @@ app.post('/api/coupon/redeem-scan', (req, res) => {
   }
 
   // 2. Normalize and sanitize scanned token
-  let cleanToken = String(token).trim();
-  if (cleanToken.includes('token=')) {
-    const match = cleanToken.match(/token=([a-zA-Z0-9_-]+)/);
-    if (match) cleanToken = match[1];
-  } else if (cleanToken.startsWith('AGF-COUPON:')) {
-    cleanToken = cleanToken.replace('AGF-COUPON:', '').trim();
+  const cleanToken = normalizeCouponToken(token);
+  if (!cleanToken) {
+    return res.status(400).json({ status: 'NOT_FOUND', error: 'UGYLDIG KUPON', message: 'Ugyldigt token format' });
   }
 
   const tokenHash = crypto.createHash('sha256').update(cleanToken).digest('hex');
@@ -628,20 +687,50 @@ app.post('/api/coupon/redeem-scan', (req, res) => {
   };
 
   // 3. Find activation record
-  const redemptions = inMemoryDb.couponRedemptions || [];
-  const target = redemptions.find(
-    (r: any) =>
-      r.redemptionToken === cleanToken ||
-      r.tokenHash === tokenHash ||
-      r.id === cleanToken ||
-      r.redemptionCode === cleanToken
-  );
+  const findTarget = (list: any[]) =>
+    list.find((r: any) => {
+      if (!r) return false;
+      // 1. Exact or case-insensitive redemptionToken
+      if (r.redemptionToken && (r.redemptionToken === cleanToken || r.redemptionToken.toLowerCase() === cleanToken.toLowerCase())) {
+        return true;
+      }
+      // 2. Token sha256 hash
+      if (r.tokenHash && r.tokenHash === tokenHash) {
+        return true;
+      }
+      // 3. Activation ID
+      if (r.id && (r.id === cleanToken || r.id.toLowerCase() === cleanToken.toLowerCase())) {
+        return true;
+      }
+      // 4. Manual human redemption code (e.g. AGF-1804 or 1804)
+      if (r.redemptionCode) {
+        if (r.redemptionCode.toLowerCase() === cleanToken.toLowerCase()) return true;
+        const strippedStored = r.redemptionCode.replace(/^AGF-?/i, '').trim();
+        const strippedInput = cleanToken.replace(/^AGF-?/i, '').trim();
+        if (strippedInput && strippedStored === strippedInput) return true;
+      }
+      return false;
+    });
 
+  let redemptions = inMemoryDb.couponRedemptions || [];
+  let target = findTarget(redemptions);
+
+  // If not found in memory, reload disk DB in case another process or server wrote it
+  if (!target) {
+    const diskDb = loadDb();
+    if (diskDb && diskDb.couponRedemptions) {
+      inMemoryDb.couponRedemptions = diskDb.couponRedemptions;
+      redemptions = inMemoryDb.couponRedemptions;
+      target = findTarget(redemptions);
+    }
+  }
+
+  // Check: activation exists
   if (!target) {
     logAudit('invalid', 'unknown', 'Ukendt kupon');
     saveDb(inMemoryDb);
     return res.status(404).json({
-      status: 'INVALID',
+      status: 'NOT_FOUND',
       error: 'UGYLDIG KUPON',
       message: 'Kuponkoden findes ikke i systemet.',
     });
@@ -650,22 +739,47 @@ app.post('/api/coupon/redeem-scan', (req, res) => {
   const coupon = inMemoryDb.coupons?.find((c: any) => c.id === target.couponId);
   const couponTitle = coupon ? coupon.title : 'Ukendt Kupon';
 
-  // 4. Check if ALREADY USED (Atomic idempotency test)
+  // Check: coupon belongs to the active Matchday where relevant
+  if (coupon && coupon.matchdayId && inMemoryDb.activeMatchdayId && coupon.matchdayId !== inMemoryDb.activeMatchdayId) {
+    logAudit('invalid', target.couponId, couponTitle, target.deviceId);
+    saveDb(inMemoryDb);
+    return res.status(400).json({
+      status: 'INACTIVE',
+      error: 'UGYLDIG KUPON',
+      message: 'Kuponen tilhører en anden kampdag.',
+      couponTitle,
+    });
+  }
+
+  // Check: coupon is active in administration
+  if (!coupon || !coupon.active) {
+    logAudit('invalid', target.couponId, couponTitle, target.deviceId);
+    saveDb(inMemoryDb);
+    return res.status(400).json({
+      status: 'INACTIVE',
+      error: 'UGYLDIG KUPON',
+      message: 'Dette tilbud er i øjeblikket ikke aktivt i administrationen.',
+      couponTitle,
+    });
+  }
+
+  // Check: activation has not already been redeemed (Atomic idempotency test)
   if (target.redeemed || target.status === 'redeemed') {
     logAudit('already_used', target.couponId, couponTitle, target.deviceId);
     saveDb(inMemoryDb);
     return res.status(409).json({
-      status: 'ALREADY_USED',
+      status: 'ALREADY_REDEEMED',
       error: 'ALLEREDE BRUGT',
       couponTitle,
       redeemedAt: target.redeemedAt
         ? new Date(target.redeemedAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })
         : 'Tidligere',
       redeemedBy: target.redeemedByStaffName || 'Personale',
+      message: 'Denne kupon er allerede indløst tidligere!',
     });
   }
 
-  // 5. Check if EXPIRED
+  // Check: coupon has not expired where applicable
   const expiresDate = new Date(target.expiresAt);
   if (now > expiresDate) {
     target.status = 'expired';
@@ -676,18 +790,6 @@ app.post('/api/coupon/redeem-scan', (req, res) => {
       status: 'EXPIRED',
       error: 'UDLØBET',
       message: 'Kuponens tidsbegrænsning er udløbet.',
-      couponTitle,
-    });
-  }
-
-  // 6. Check if offer is active in administration
-  if (!coupon || !coupon.active) {
-    logAudit('invalid', target.couponId, couponTitle, target.deviceId);
-    saveDb(inMemoryDb);
-    return res.status(400).json({
-      status: 'INVALID',
-      error: 'UGYLDIG KUPON',
-      message: 'Dette tilbud er i øjeblikket ikke aktivt.',
       couponTitle,
     });
   }
@@ -713,7 +815,7 @@ app.post('/api/coupon/redeem-scan', (req, res) => {
   broadcast('db_updated', inMemoryDb);
 
   return res.json({
-    status: 'SUCCESS',
+    status: 'VALID',
     message: 'KUPON GODKENDT',
     couponName: coupon.title,
     offerDetails: `${coupon.offerPrice} kr.${coupon.originalPrice ? ` (før ${coupon.originalPrice} kr.)` : ''}`,

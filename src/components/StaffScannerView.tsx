@@ -190,7 +190,7 @@ export const StaffScannerView: React.FC<StaffScannerViewProps> = ({ db, onExit }
       );
       setLastResult(result);
 
-      if (result.status === 'SUCCESS') {
+      if (result.status === 'SUCCESS' || result.status === 'VALID') {
         playAudioFeedback('success');
       } else {
         playAudioFeedback('error');
@@ -329,20 +329,22 @@ export const StaffScannerView: React.FC<StaffScannerViewProps> = ({ db, onExit }
       {lastResult && (
         <div
           className={`rounded-2xl p-5 border-2 shadow-lg transition-all animate-scale-up ${
-            lastResult.status === 'SUCCESS'
+            lastResult.status === 'SUCCESS' || lastResult.status === 'VALID'
               ? 'bg-emerald-50 border-emerald-500 text-emerald-950'
-              : lastResult.status === 'ALREADY_USED'
+              : lastResult.status === 'ALREADY_USED' || lastResult.status === 'ALREADY_REDEEMED'
               ? 'bg-amber-50 border-amber-500 text-amber-950'
               : lastResult.status === 'EXPIRED'
               ? 'bg-orange-50 border-orange-500 text-orange-950'
+              : lastResult.status === 'INACTIVE' || lastResult.status === 'INACTIVE_OFFER'
+              ? 'bg-slate-100 border-slate-400 text-slate-900'
               : 'bg-red-50 border-red-500 text-red-950'
           }`}
         >
           <div className="flex items-start gap-3">
             <div className="shrink-0 mt-0.5">
-              {lastResult.status === 'SUCCESS' ? (
+              {lastResult.status === 'SUCCESS' || lastResult.status === 'VALID' ? (
                 <CheckCircle2 className="w-8 h-8 text-emerald-600" />
-              ) : lastResult.status === 'ALREADY_USED' ? (
+              ) : lastResult.status === 'ALREADY_USED' || lastResult.status === 'ALREADY_REDEEMED' ? (
                 <AlertTriangle className="w-8 h-8 text-amber-600" />
               ) : (
                 <XCircle className="w-8 h-8 text-red-600" />
@@ -352,12 +354,16 @@ export const StaffScannerView: React.FC<StaffScannerViewProps> = ({ db, onExit }
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <h3 className="font-black text-lg uppercase tracking-tight">
-                  {lastResult.status === 'SUCCESS'
+                  {lastResult.status === 'SUCCESS' || lastResult.status === 'VALID'
                     ? 'KUPON GODKENDT'
-                    : lastResult.status === 'ALREADY_USED'
+                    : lastResult.status === 'ALREADY_USED' || lastResult.status === 'ALREADY_REDEEMED'
                     ? 'ALLEREDE BRUGT'
                     : lastResult.status === 'EXPIRED'
                     ? 'UDLØBET'
+                    : lastResult.status === 'INACTIVE' || lastResult.status === 'INACTIVE_OFFER'
+                    ? 'UGYLDIG KUPON (IKKE AKTIV)'
+                    : lastResult.status === 'NOT_FOUND'
+                    ? 'UGYLDIG KUPON'
                     : 'UGYLDIG KUPON'}
                 </h3>
                 <span className="text-[11px] font-mono font-bold opacity-75">
@@ -377,7 +383,7 @@ export const StaffScannerView: React.FC<StaffScannerViewProps> = ({ db, onExit }
                 </p>
               )}
 
-              {lastResult.status === 'ALREADY_USED' && (
+              {(lastResult.status === 'ALREADY_USED' || lastResult.status === 'ALREADY_REDEEMED') && (
                 <div className="mt-2 text-xs font-semibold bg-amber-100/70 p-2.5 rounded-xl border border-amber-200">
                   <p>
                     Denne kupon er allerede indløst tidligere!
@@ -390,7 +396,7 @@ export const StaffScannerView: React.FC<StaffScannerViewProps> = ({ db, onExit }
                 </div>
               )}
 
-              {lastResult.message && lastResult.status !== 'SUCCESS' && (
+              {lastResult.message && lastResult.status !== 'SUCCESS' && lastResult.status !== 'VALID' && (
                 <p className="text-xs mt-1 opacity-90">{lastResult.message}</p>
               )}
             </div>

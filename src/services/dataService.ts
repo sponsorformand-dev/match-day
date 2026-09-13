@@ -310,8 +310,42 @@ export function startLiveSync() {
 
 const STAFF_SESSION_KEY = 'agf_staff_session_v1';
 
+export function normalizeCouponToken(raw: any): string {
+  if (!raw) return '';
+  let token = String(raw).trim();
+
+  // Decode URI percent-encoding if present
+  try {
+    if (token.includes('%')) {
+      token = decodeURIComponent(token);
+    }
+  } catch {}
+
+  // Parse if it was scanned as JSON
+  if (token.startsWith('{') && token.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(token);
+      token = parsed.token || parsed.redemptionToken || parsed.id || token;
+    } catch {}
+  }
+
+  // Handle URL format: e.g. https://.../?token=... or /coupon/redeem?token=...
+  if (token.includes('token=')) {
+    const match = token.match(/token=([a-zA-Z0-9_-]+)/);
+    if (match) token = match[1];
+  }
+
+  // Strip canonical prefix AGFCOUPON: or legacy AGF-COUPON: (case-insensitive)
+  token = token.replace(/^(agfcoupon:|agf-coupon:)/i, '').trim();
+
+  // Strip surrounding quotes
+  token = token.replace(/^["']|["']$/g, '').trim();
+
+  return token;
+}
+
 export interface ScanRedeemResult {
-  status: 'SUCCESS' | 'ALREADY_USED' | 'EXPIRED' | 'INVALID' | 'INACTIVE_OFFER' | 'UNAUTHORIZED' | 'ERROR';
+  status: 'VALID' | 'SUCCESS' | 'ALREADY_REDEEMED' | 'ALREADY_USED' | 'EXPIRED' | 'INACTIVE' | 'NOT_FOUND' | 'INVALID' | 'INACTIVE_OFFER' | 'UNAUTHORIZED' | 'ERROR';
   message?: string;
   error?: string;
   couponName?: string;
@@ -330,6 +364,7 @@ export const dataService = {
   subscribeToDatabase,
   recordVisit,
   startLiveSync,
+  syncFromServer,
 
   async updateDatabase(newDb: MatchdayDatabase) {
     cachedDb = newDb;
@@ -563,10 +598,14 @@ export const dataService = {
         body: JSON.stringify({ couponId, deviceId }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        return { success: false, error: data.error || 'Fejl under aktivering af kupon' };
+      if (!res.ok || !data.success || !data.redemption?.redemptionToken) {
+        return {
+          success: false,
+          error: data.error || data.message || 'Kunne ikke aktivere kupon på serveren',
+          redemption: data.redemption,
+        };
       }
-      // Update local state
+      // Update local state with the verified server-persisted activation
       cachedDb.couponRedemptions = [
         ...(cachedDb.couponRedemptions || []).filter(
           r => !(r.couponId === couponId && r.deviceId === deviceId)
@@ -575,26 +614,11 @@ export const dataService = {
       ];
       notifyListeners();
       return { success: true, redemption: data.redemption };
-    } catch (e) {
-      // Local fallback
-      const coupon = cachedDb.coupons.find(c => c.id === couponId);
-      if (!coupon) return { success: false, error: 'Kupon ikke fundet' };
-      const durationMs = (coupon.activationDurationMinutes || 10) * 60 * 1000;
-      const redemption: CouponRedemption = {
-        id: `red-${Date.now()}`,
-        couponId,
-        matchdayId: cachedDb.activeMatchdayId || 'md-1',
-        deviceId,
-        redemptionToken: Math.random().toString(36).substring(2) + Date.now().toString(36),
-        activatedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + durationMs).toISOString(),
-        redeemed: false,
-        status: 'active',
-        redemptionCode: `AGF-${Math.floor(1000 + Math.random() * 9000)}`,
+    } catch (e: any) {
+      return {
+        success: false,
+        error: 'Netværksfejl: Kunne ikke forbinde til serveren for at aktivere kuponen. Prøv igen.',
       };
-      cachedDb.couponRedemptions.push(redemption);
-      notifyListeners();
-      return { success: true, redemption };
     }
   },
 
@@ -1145,13 +1169,15 @@ export const dataService = {
     const currentStaff = this.getCurrentStaffUser();
     const pin = staffPin || currentStaff?.pin || cachedDb.adminPin || '1880';
     const id = staffId || currentStaff?.id || session?.id || 'staff-scanner';
+    const cleanToken = normalizeCouponToken(token);
 
     try {
       const res = await fetch('/api/coupon/redeem-scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          token: token.trim(),
+          token: cleanToken,
+          rawToken: token,
           staffPin: pin,
           staffId: id,
           sessionToken: session?.id,
@@ -1162,24 +1188,27 @@ export const dataService = {
       return data;
     } catch (e: any) {
       // Local fallback validation if offline
-      const cleanToken = token.trim();
       const redemptions = cachedDb.couponRedemptions || [];
       const target = redemptions.find(
-        r => r.redemptionToken === cleanToken || r.id === cleanToken || r.redemptionCode === cleanToken
+        r =>
+          (r.redemptionToken && (r.redemptionToken === cleanToken || r.redemptionToken.toLowerCase() === cleanToken.toLowerCase())) ||
+          (r.id && (r.id === cleanToken || r.id.toLowerCase() === cleanToken.toLowerCase())) ||
+          (r.redemptionCode && (r.redemptionCode.toLowerCase() === cleanToken.toLowerCase() || r.redemptionCode.replace(/^AGF-?/i, '') === cleanToken.replace(/^AGF-?/i, '')))
       );
 
       if (!target) {
-        return { status: 'INVALID', error: 'UGYLDIG KUPON', message: 'Kuponkoden findes ikke.' };
+        return { status: 'NOT_FOUND', error: 'UGYLDIG KUPON', message: 'Kuponkoden findes ikke.' };
       }
 
       if (target.redeemed || target.status === 'redeemed') {
         return {
-          status: 'ALREADY_USED',
+          status: 'ALREADY_REDEEMED',
           error: 'ALLEREDE BRUGT',
           redeemedAt: target.redeemedAt
             ? new Date(target.redeemedAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })
             : undefined,
           redeemedBy: target.redeemedByStaffName || 'Personale',
+          message: 'Denne kupon er allerede indløst tidligere!',
         };
       }
 
@@ -1187,15 +1216,15 @@ export const dataService = {
       if (now > new Date(target.expiresAt)) {
         target.status = 'expired';
         notifyListeners();
-        return { status: 'EXPIRED', error: 'UDLØBET' };
+        return { status: 'EXPIRED', error: 'UDLØBET', message: 'Kuponens tidsbegrænsning er udløbet.' };
       }
 
       const coupon = cachedDb.coupons.find(c => c.id === target.couponId);
       if (!coupon || !coupon.active) {
-        return { status: 'INVALID', error: 'UGYLDIG KUPON' };
+        return { status: 'INACTIVE', error: 'UGYLDIG KUPON', message: 'Dette tilbud er i øjeblikket ikke aktivt.' };
       }
 
-      // Mark redeemed
+      // Mark redeemed atomically
       target.redeemed = true;
       target.status = 'redeemed';
       target.redeemedAt = now.toISOString();
@@ -1207,7 +1236,7 @@ export const dataService = {
       await pushToServer(cachedDb);
 
       return {
-        status: 'SUCCESS',
+        status: 'VALID',
         message: 'KUPON GODKENDT',
         couponName: coupon.title,
         offerDetails: `${coupon.offerPrice} kr.`,
