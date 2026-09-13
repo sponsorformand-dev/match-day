@@ -8,6 +8,8 @@ interface HeaderProps {
   onOpenLogin?: () => void;
   onOpenAdmin?: () => void;
   onOpenScanner?: () => void;
+  isAdminActive?: boolean;
+  agfLogo?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -16,7 +18,11 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenLogin,
   onOpenAdmin,
   onOpenScanner,
+  isAdminActive,
+  agfLogo,
 }) => {
+  const currentLogo = agfLogo || matchday?.agfLogo || '/agf-logo.svg';
+
   return (
     <header className="bg-[#081326] text-white p-4 pt-6 pb-4 sm:pt-8 flex flex-col items-center border-b border-white/10 relative shadow-md">
       {/* Top right quick staff/admin trigger */}
@@ -55,12 +61,15 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Centerpiece Bold Brand Emblem */}
-      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-2 shadow-sm border border-white/20 p-1">
+      <div className="w-14 h-16 sm:w-16 sm:h-18 bg-white rounded-2xl flex items-center justify-center mb-2 shadow-md border-2 border-white/80 p-1.5 transition-transform">
         <img
-          src="/agf-logo.svg"
+          src={currentLogo}
           alt="AGF Håndbold Logo"
           className="w-full h-full object-contain"
           referrerPolicy="no-referrer"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = '/agf-logo.svg';
+          }}
         />
       </div>
 

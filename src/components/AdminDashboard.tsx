@@ -1064,6 +1064,93 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose, ini
         {/* ================= SECTION: KAMPE ================= */}
         {currentSection === 'kampe' && (
           <div className="space-y-4">
+            {/* Klubidentitet & AGF Håndbold Logo */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-gray-200 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-16 rounded-2xl bg-white border-2 border-gray-200 p-1.5 flex items-center justify-center shadow-xs shrink-0">
+                    <img
+                      src={db.agfLogo || '/agf-logo.svg'}
+                      alt="AGF Håndbold Logo"
+                      className="w-full h-full object-contain"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/agf-logo.svg';
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-black text-sm sm:text-base text-[#081326] uppercase tracking-tight">
+                        Klubidentitet & AGF Håndbold Logo
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-[10px] font-black uppercase">
+                        Aktiv
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">
+                      Det officielle AGF-våbenskjold bruges i appens header, kampkort, afstemninger og delingskort.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="px-3.5 py-2 rounded-xl bg-[#081326] hover:bg-black text-white text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-xs transition-all">
+                    <Upload className="w-3.5 h-3.5 text-red-400" />
+                    <span>Upload Logo</span>
+                    <input
+                      type="file"
+                      accept="image/svg+xml,image/png,image/webp,image/jpeg"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 5 * 1024 * 1024) {
+                          alert('Billedet må maksimalt fylde 5 MB');
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = (evt) => {
+                          const res = evt.target?.result as string;
+                          if (res) {
+                            dataService.updateAgfLogo(res);
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      dataService.updateAgfLogo('/agf-logo.svg');
+                    }}
+                    className="px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold transition-all cursor-pointer"
+                    title="Nulstil til officielt AGF vektorlogo"
+                  >
+                    Gendan Standard
+                  </button>
+                </div>
+              </div>
+
+              {/* URL input option */}
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider shrink-0">
+                  Logo URL / Sti:
+                </span>
+                <input
+                  type="text"
+                  value={db.agfLogo || '/agf-logo.svg'}
+                  onChange={(e) => {
+                    dataService.updateAgfLogo(e.target.value);
+                  }}
+                  placeholder="/agf-logo.svg eller https://..."
+                  className="flex-1 px-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg text-[#081326] font-mono focus:outline-hidden focus:ring-1 focus:ring-[#081326]"
+                />
+              </div>
+            </div>
+
             {/* Header & Logo Status Overview Banner */}
             <div className="bg-white rounded-2xl p-4 border border-gray-200 shadow-xs">
               <div className="flex items-center justify-between mb-3">
@@ -1480,10 +1567,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose, ini
                     </div>
                   </div>
 
-                  {/* Live Match URL (Flashscore, tophaandbold.dk, etc.) */}
+                  {/* Live Match URL (TopHåndbold, Flashscore, etc.) */}
                   <div>
                     <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1 flex items-center justify-between">
-                      <span>Live match URL (ekstern livescore):</span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                        <span>TopHåndbold Livescore & Kamp-link:</span>
+                      </span>
                       <span className="text-[10px] text-gray-400 font-normal">Valgfri</span>
                     </label>
                     <div className="flex gap-2">
@@ -1491,7 +1581,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose, ini
                         type="url"
                         value={match.liveMatchUrl || ''}
                         onChange={(e) => dataService.saveMatch({ ...match, liveMatchUrl: e.target.value })}
-                        placeholder="https://tophaandbold.dk/kampe"
+                        placeholder="https://tophaandbold.dk/livescore"
                         className="flex-1 px-3 py-1.5 text-xs font-mono bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:border-[#081326] outline-hidden font-medium"
                       />
                       {match.liveMatchUrl && (
@@ -1499,15 +1589,62 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ db, onClose, ini
                           href={match.liveMatchUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs flex items-center gap-1"
-                          title="Test link"
+                          className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs flex items-center gap-1 shrink-0 font-bold"
+                          title="Åbn og test livescore link"
                         >
+                          <span>Test</span>
                           <ExternalLink className="w-3.5 h-3.5" />
                         </a>
                       )}
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      Når denne URL er udfyldt, vises knappen <strong>"FØLG KAMPEN LIVE"</strong> på kampkortet for tilskuere.
+
+                    {/* Quick-insert presets for TopHåndbold */}
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mr-1">
+                        Hurtigvalg:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => dataService.saveMatch({ ...match, liveMatchUrl: 'https://tophaandbold.dk/livescore' })}
+                        className="px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-[#081326] text-[10px] font-bold cursor-pointer transition-colors"
+                      >
+                        ⚡ TopHåndbold Livescore
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          dataService.saveMatch({
+                            ...match,
+                            liveMatchUrl:
+                              match.category === 'DAMER'
+                                ? 'https://tophaandbold.dk/1-division-kvinder'
+                                : 'https://tophaandbold.dk/1-division-herrer',
+                          })
+                        }
+                        className="px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-[#081326] text-[10px] font-bold cursor-pointer transition-colors"
+                      >
+                        {match.category === 'DAMER' ? '1. Div Kvinder' : '1. Div Herrer'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => dataService.saveMatch({ ...match, liveMatchUrl: 'https://danskhaandbold.dk/turneringer-og-resultater' })}
+                        className="px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-[#081326] text-[10px] font-bold cursor-pointer transition-colors"
+                      >
+                        DanskHåndbold Live
+                      </button>
+                      {match.liveMatchUrl && (
+                        <button
+                          type="button"
+                          onClick={() => dataService.saveMatch({ ...match, liveMatchUrl: '' })}
+                          className="px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-bold cursor-pointer transition-colors"
+                        >
+                          Fjern link
+                        </button>
+                      )}
+                    </div>
+
+                    <p className="text-[10px] text-gray-400 mt-1.5 leading-relaxed">
+                      Når linket er udfyldt, vises en direkte knap <strong>"TopHåndbold Livescore · Livecenter"</strong> på kampkortet for tilskuerne. TopHåndbold tillader ikke indlejring i iframes (SAMEORIGIN), så linket åbner direkte i en separat fane på telefonen.
                     </p>
                   </div>
                 </div>

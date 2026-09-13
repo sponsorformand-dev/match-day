@@ -21,7 +21,7 @@
     }
   ],
   "mobilePayNumber": "1880",
-  "visits": 146,
+  "visits": 152,
   "activeMatchdayId": "matchday-1",
   "matchdays": [
     {
@@ -43,7 +43,8 @@
       "looadDescription": "Skift elselskab til Looad og støt samtidig AGF Håndbold.",
       "welcomeMessage": "Velkommen til AGF Håndbold i Ceres Arena. Støt de hvide!",
       "mobilePayNumber": "1880",
-      "createdAt": "2026-09-11T13:22:48.440Z"
+      "createdAt": "2026-09-11T13:22:48.440Z",
+      "agfLogo": "/agf-logo.svg"
     },
     {
       "id": "matchday-2",
@@ -64,7 +65,8 @@
       "looadDescription": "Skift elselskab til Looad og støt samtidig AGF Håndbold.",
       "welcomeMessage": "Gør dig klar til det store lokalopgør!",
       "mobilePayNumber": "1880",
-      "createdAt": "2026-09-11T13:22:48.440Z"
+      "createdAt": "2026-09-11T13:22:48.440Z",
+      "agfLogo": "/agf-logo.svg"
     }
   ],
   "matches": [
@@ -83,7 +85,7 @@
       "time": "13:00",
       "venue": "Ceres Arena",
       "status": "upcoming",
-      "liveMatchUrl": "https://tophaandbold.dk"
+      "liveMatchUrl": "https://tophaandbold.dk/livescore"
     },
     {
       "id": "match-2",
@@ -100,7 +102,7 @@
       "time": "15:15",
       "venue": "Ceres Arena",
       "status": "upcoming",
-      "liveMatchUrl": "https://tophaandbold.dk"
+      "liveMatchUrl": "https://tophaandbold.dk/livescore"
     }
   ],
   "schedule": [
@@ -282,7 +284,8 @@
       "activationDurationMinutes": 10,
       "maxRedemptions": 150,
       "redemptionsCount": 38,
-      "sponsor": "Ceres Bryggerierne"
+      "sponsor": "Ceres Bryggerierne",
+      "sortOrder": 1
     },
     {
       "id": "coup-2",
@@ -295,7 +298,8 @@
       "activationDurationMinutes": 15,
       "maxRedemptions": 100,
       "redemptionsCount": 24,
-      "sponsor": "Arbejdernes Landsbank"
+      "sponsor": "Arbejdernes Landsbank",
+      "sortOrder": 2
     },
     {
       "id": "coup-3",
@@ -308,7 +312,8 @@
       "activationDurationMinutes": 15,
       "maxRedemptions": 80,
       "redemptionsCount": 19,
-      "sponsor": "Kiosken"
+      "sponsor": "Kiosken",
+      "sortOrder": 3
     }
   ],
   "couponRedemptions": [],
@@ -861,5 +866,6 @@
     }
   ],
   "redemptionLogs": [],
-  "canonicalAppUrl": "https://match-day-rose.vercel.app"
+  "canonicalAppUrl": "https://match-day-rose.vercel.app",
+  "agfLogo": "/agf-logo.svg"
 }

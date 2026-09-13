@@ -102,6 +102,13 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
+// Explicit fresh-delivery route for official AGF logo
+app.get('/agf-logo.svg', (req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.set('Content-Type', 'image/svg+xml');
+  res.sendFile(path.join(process.cwd(), 'public', 'agf-logo.svg'));
+});
+
 // 2. Get full database
 app.get('/api/db', (req, res) => {
   if (!inMemoryDb) {

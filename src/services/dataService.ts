@@ -163,6 +163,9 @@ let cachedDb: MatchdayDatabase = (() => {
           return m;
         });
       }
+      if (!parsed.agfLogo) {
+        parsed.agfLogo = initialDatabase.agfLogo || '/agf-logo.svg';
+      }
       return parsed;
     }
   } catch (e) {
@@ -374,6 +377,31 @@ export const dataService = {
       notifyListeners();
       await pushToServer(cachedDb);
     }
+  },
+
+  // Global Official AGF Logo
+  getAgfLogo(): string {
+    return cachedDb.agfLogo || '/agf-logo.svg';
+  },
+
+  async updateAgfLogo(logo: string) {
+    const cleanLogo = logo.trim() || '/agf-logo.svg';
+    cachedDb.agfLogo = cleanLogo;
+    if (cachedDb.matchdays) {
+      cachedDb.matchdays = cachedDb.matchdays.map((md) => ({
+        ...md,
+        agfLogo: cleanLogo,
+      }));
+    }
+    cachedDb.matches = cachedDb.matches.map((m) => {
+      const homeName = m.homeTeamName || m.homeTeam || '';
+      if (homeName.includes('AGF')) {
+        return { ...m, homeTeamLogo: cleanLogo };
+      }
+      return m;
+    });
+    notifyListeners();
+    await pushToServer(cachedDb);
   },
 
   // Matches

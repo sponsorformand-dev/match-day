@@ -11,6 +11,7 @@ interface VotingViewProps {
   partners: Partner[];
   matches?: Match[];
   initialCategory?: 'DAMER' | 'HERRER';
+  agfLogo?: string;
 }
 
 export const VotingView: React.FC<VotingViewProps> = ({
@@ -20,6 +21,7 @@ export const VotingView: React.FC<VotingViewProps> = ({
   partners,
   matches,
   initialCategory = 'DAMER',
+  agfLogo,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<'DAMER' | 'HERRER'>(initialCategory);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
@@ -29,6 +31,8 @@ export const VotingView: React.FC<VotingViewProps> = ({
 
   const deviceId = getOrCreateDeviceId();
   const currentMatch = (matches || []).find((m) => m.category === selectedCategory);
+  const opponentName = currentMatch?.awayTeamName || currentMatch?.awayTeam || currentMatch?.opponent;
+  const currentLogo = agfLogo || '/agf-logo.svg';
 
   // Find active session for current category
   const currentSession = sessions.find((s) => s.category === selectedCategory);
@@ -124,7 +128,7 @@ export const VotingView: React.FC<VotingViewProps> = ({
             <div className="flex-1">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-bold tracking-wider uppercase text-gray-300">
-                  AGF {selectedCategory}{currentMatch?.opponent ? ` · MOD ${currentMatch.opponent.toUpperCase()}` : ''}
+                  AGF {selectedCategory}{opponentName ? ` · MOD ${opponentName.toUpperCase()}` : ''}
                 </span>
                 {currentSession.status === 'open' ? (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#C8102E] text-white">
@@ -161,12 +165,15 @@ export const VotingView: React.FC<VotingViewProps> = ({
               )}
             </div>
 
-            <div className="w-12 h-12 rounded-2xl bg-white/10 p-2 flex items-center justify-center border border-white/15 shrink-0">
+            <div className="w-12 h-14 rounded-2xl bg-white p-1.5 flex items-center justify-center border border-white/20 shadow-xs shrink-0">
               <img
-                src="/agf-logo.svg"
+                src={currentLogo}
                 alt="AGF Håndbold"
                 className="w-full h-full object-contain"
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/agf-logo.svg';
+                }}
               />
             </div>
           </div>

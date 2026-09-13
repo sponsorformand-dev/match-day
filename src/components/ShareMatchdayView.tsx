@@ -7,13 +7,16 @@ interface ShareMatchdayViewProps {
   matchday?: Matchday;
   canonicalUrl?: string;
   onBack?: () => void;
+  agfLogo?: string;
 }
 
 export const ShareMatchdayView: React.FC<ShareMatchdayViewProps> = ({
   matchday,
   canonicalUrl,
   onBack,
+  agfLogo,
 }) => {
+  const currentLogo = agfLogo || matchday?.agfLogo || '/agf-logo.svg';
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
   const [canShare, setCanShare] = useState<boolean>(false);
@@ -110,13 +113,13 @@ export const ShareMatchdayView: React.FC<ShareMatchdayViewProps> = ({
       {/* Main Sharing Card - High Contrast, optimized for scanning off phone screen */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-lg text-center flex flex-col items-center">
         {/* AGF Club Crest Logo */}
-        <div className="w-16 h-16 rounded-full bg-white border-2 border-red-600 flex items-center justify-center p-2 shadow-sm mb-3">
+        <div className="w-16 h-18 rounded-2xl bg-white border-2 border-red-600 flex items-center justify-center p-2 shadow-sm mb-3">
           <img
-            src="/agf-logo.svg"
+            src={currentLogo}
             alt="AGF Håndbold Logo"
             className="w-full h-full object-contain"
             onError={(e) => {
-              (e.target as HTMLElement).style.display = 'none';
+              (e.target as HTMLImageElement).src = '/agf-logo.svg';
             }}
           />
         </div>

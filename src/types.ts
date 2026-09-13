@@ -24,6 +24,7 @@ export interface Matchday {
   kampdagssponsorId?: string;
   kampensSpillerSponsorId?: string;
   mobilePayNumber?: string;
+  agfLogo?: string;
   createdAt: string;
 }
 
@@ -89,6 +90,7 @@ export interface Coupon {
   redemptionsCount: number;
   sponsor?: string;
   sponsorLogo?: string;
+  sortOrder?: number;
 }
 
 export interface CouponRedemption {
@@ -267,4 +269,5 @@ export interface MatchdayDatabase {
   staffUsers?: StaffUser[];
   redemptionLogs?: RedemptionLogEntry[];
   canonicalAppUrl?: string;
+  agfLogo?: string;
 }

@@ -1,19 +1,24 @@
 import React from 'react';
-import { ScheduleItem } from '../types.ts';
+import { ScheduleItem, Match } from '../types.ts';
 import { Clock, MapPin, CheckCircle2, Radio, Calendar } from 'lucide-react';
 
 interface ProgrammeViewProps {
   schedule: ScheduleItem[];
   matchdayTitle?: string;
   matchdayDate?: string;
+  matches?: Match[];
+  agfLogo?: string;
 }
 
 export const ProgrammeView: React.FC<ProgrammeViewProps> = ({
   schedule,
   matchdayTitle,
   matchdayDate,
+  matches = [],
+  agfLogo,
 }) => {
   const sorted = [...schedule].sort((a, b) => a.order - b.order);
+  const currentLogo = agfLogo || '/agf-logo.svg';
 
   return (
     <div className="pb-16 pt-2">
@@ -31,12 +36,15 @@ export const ProgrammeView: React.FC<ProgrammeViewProps> = ({
             Følg tidsplanen for alle aktiviteter og kampe i Ceres Arena.
           </p>
         </div>
-        <div className="w-12 h-12 rounded-2xl bg-white/10 p-2 flex items-center justify-center border border-white/15 shrink-0">
+        <div className="w-12 h-14 rounded-2xl bg-white p-1.5 flex items-center justify-center border border-white/20 shadow-xs shrink-0">
           <img
-            src="/agf-logo.svg"
+            src={currentLogo}
             alt="AGF Håndbold"
             className="w-full h-full object-contain"
             referrerPolicy="no-referrer"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/agf-logo.svg';
+            }}
           />
         </div>
       </div>
@@ -113,13 +121,26 @@ export const ProgrammeView: React.FC<ProgrammeViewProps> = ({
                   </div>
 
                   {/* Title */}
-                  <h3
-                    className={`font-black text-base uppercase tracking-tight leading-tight ${
-                      isLive ? 'text-red-950' : isCompleted ? 'text-gray-700' : 'text-[#081326]'
-                    }`}
-                  >
-                    {item.title}
-                  </h3>
+                  {(() => {
+                    const matchingMatch = matches.find(
+                      (m) =>
+                        (item.title.toLowerCase().includes('damer') && m.category === 'DAMER') ||
+                        (item.title.toLowerCase().includes('herrer') && m.category === 'HERRER')
+                    );
+                    const displayTitle = matchingMatch
+                      ? `${matchingMatch.homeTeamName || matchingMatch.homeTeam || 'AGF Håndbold'} vs. ${matchingMatch.awayTeamName || matchingMatch.awayTeam || 'Udehold'}`
+                      : item.title;
+
+                    return (
+                      <h3
+                        className={`font-black text-base uppercase tracking-tight leading-tight ${
+                          isLive ? 'text-red-950' : isCompleted ? 'text-gray-700' : 'text-[#081326]'
+                        }`}
+                      >
+                        {displayTitle}
+                      </h3>
+                    );
+                  })()}
 
                   {/* Description */}
                   {item.description && (

@@ -10,6 +10,7 @@ interface MatchCardsProps {
   partners?: Partner[];
   kampensSpillerSponsorId?: string;
   onVoteClick: (category: 'DAMER' | 'HERRER') => void;
+  agfLogo?: string;
 }
 
 export const MatchCards: React.FC<MatchCardsProps> = ({
@@ -20,6 +21,7 @@ export const MatchCards: React.FC<MatchCardsProps> = ({
   partners = [],
   kampensSpillerSponsorId,
   onVoteClick,
+  agfLogo,
 }) => {
   if (!matches || matches.length === 0) {
     return (
@@ -49,7 +51,8 @@ export const MatchCards: React.FC<MatchCardsProps> = ({
 
         // Teams config
         const homeName = match.homeTeamName || match.homeTeam || 'AGF Håndbold';
-        const homeLogo = match.homeTeamLogo || '/agf-logo.svg';
+        const defaultAgf = agfLogo || '/agf-logo.svg';
+        const homeLogo = match.homeTeamLogo || defaultAgf;
         const awayName = match.awayTeamName || match.awayTeam || 'Udehold';
         const awayLogo = match.awayTeamLogo || match.awayLogo || '';
 
@@ -90,7 +93,7 @@ export const MatchCards: React.FC<MatchCardsProps> = ({
             <div className="p-4 sm:p-5 flex items-center justify-between gap-2 sm:gap-4">
               {/* Home Team (AGF Håndbold) */}
               <div className="flex-1 flex flex-col items-center text-center">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white border border-gray-100 flex items-center justify-center p-2 mb-2 shadow-2xs">
+                <div className="w-14 h-16 sm:w-16 sm:h-18 rounded-2xl bg-white border border-gray-200/90 flex items-center justify-center p-1.5 mb-2 shadow-xs">
                   <img
                     src={homeLogo}
                     alt={homeName}
@@ -123,7 +126,7 @@ export const MatchCards: React.FC<MatchCardsProps> = ({
 
               {/* Away Team */}
               <div className="flex-1 flex flex-col items-center text-center">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white border border-gray-100 flex items-center justify-center p-2 mb-2 shadow-2xs">
+                <div className="w-14 h-16 sm:w-16 sm:h-18 rounded-2xl bg-white border border-gray-200/90 flex items-center justify-center p-1.5 mb-2 shadow-xs">
                   {awayLogo ? (
                     <img
                       src={awayLogo}
@@ -168,17 +171,30 @@ export const MatchCards: React.FC<MatchCardsProps> = ({
               </div>
             )}
 
-            {/* External Live Match URL (Only when configured) */}
+            {/* External Live Match URL (TopHåndbold Livescore / Live Match) */}
             {match.liveMatchUrl && (
               <div className="px-4 sm:px-5 pb-3">
                 <a
                   href={match.liveMatchUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-2.5 px-4 rounded-xl bg-[#081326] hover:bg-black text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.99]"
+                  className="w-full py-2.5 px-4 rounded-xl bg-[#081326] hover:bg-black text-white text-xs font-black uppercase tracking-wider flex items-center justify-between shadow-xs transition-all active:scale-[0.99] group border border-white/10"
                 >
-                  <span>FØLG KAMPEN LIVE</span>
-                  <ExternalLink className="w-3.5 h-3.5 text-red-400" />
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                    </span>
+                    <span>
+                      {match.liveMatchUrl.includes('tophaandbold')
+                        ? 'TopHåndbold Livescore'
+                        : 'Følg Kampen Live'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-gray-300 font-bold group-hover:text-white">
+                    <span>Livecenter</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-red-400" />
+                  </div>
                 </a>
               </div>
             )}

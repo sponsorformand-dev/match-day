@@ -68,7 +68,7 @@ export const initialDatabase: MatchdayDatabase = {
       time: '13:00',
       venue: 'Ceres Arena',
       status: 'upcoming',
-      liveMatchUrl: 'https://tophaandbold.dk',
+      liveMatchUrl: 'https://tophaandbold.dk/livescore',
     },
     {
       id: 'match-2',
@@ -85,7 +85,7 @@ export const initialDatabase: MatchdayDatabase = {
       time: '15:15',
       venue: 'Ceres Arena',
       status: 'upcoming',
-      liveMatchUrl: 'https://tophaandbold.dk',
+      liveMatchUrl: 'https://tophaandbold.dk/livescore',
     }
   ],
   schedule: [
@@ -268,6 +268,7 @@ export const initialDatabase: MatchdayDatabase = {
       maxRedemptions: 150,
       redemptionsCount: 38,
       sponsor: 'Ceres Bryggerierne',
+      sortOrder: 1,
     },
     {
       id: 'coup-2',
@@ -281,6 +282,7 @@ export const initialDatabase: MatchdayDatabase = {
       maxRedemptions: 100,
       redemptionsCount: 24,
       sponsor: 'Arbejdernes Landsbank',
+      sortOrder: 2,
     },
     {
       id: 'coup-3',
@@ -294,6 +296,7 @@ export const initialDatabase: MatchdayDatabase = {
       maxRedemptions: 80,
       redemptionsCount: 19,
       sponsor: 'Kiosken',
+      sortOrder: 3,
     }
   ],
   couponRedemptions: [],
@@ -688,5 +691,6 @@ export const initialDatabase: MatchdayDatabase = {
     }
   ],
   redemptionLogs: [],
-  canonicalAppUrl: 'https://match-day-rose.vercel.app'
+  canonicalAppUrl: 'https://match-day-rose.vercel.app',
+  agfLogo: '/agf-logo.svg',
 };

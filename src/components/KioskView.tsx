@@ -1,13 +1,21 @@
 import React, { useState } from 'react';
-import { Product } from '../types.ts';
+import { Product, Coupon, CouponRedemption } from '../types.ts';
 import { Beer, Search, Coffee, Utensils, Sparkles, AlertTriangle, Copy, Check } from 'lucide-react';
+import { KioskCouponCarousel } from './KioskCouponCarousel.tsx';
 
 interface KioskViewProps {
   products: Product[];
+  coupons?: Coupon[];
+  redemptions?: CouponRedemption[];
   mobilePayNumber?: string;
 }
 
-export const KioskView: React.FC<KioskViewProps> = ({ products, mobilePayNumber }) => {
+export const KioskView: React.FC<KioskViewProps> = ({
+  products,
+  coupons,
+  redemptions,
+  mobilePayNumber,
+}) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Alle');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [copied, setCopied] = useState(false);
@@ -82,6 +90,9 @@ export const KioskView: React.FC<KioskViewProps> = ({ products, mobilePayNumber 
           </button>
         </div>
       )}
+
+      {/* Dagens Kuponer - Horizontal Swipeable Carousel (Shown only when active coupons exist) */}
+      <KioskCouponCarousel coupons={coupons} redemptions={redemptions} />
 
       {/* Search Input */}
       <div className="relative mb-3">

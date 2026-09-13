@@ -24,6 +24,7 @@ interface HomeViewProps {
   partners?: Partner[];
   onNavigate: (tab: ActiveTab) => void;
   onVoteMatch: (category: 'DAMER' | 'HERRER') => void;
+  agfLogo?: string;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -35,6 +36,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   partners = [],
   onNavigate,
   onVoteMatch,
+  agfLogo,
 }) => {
   const isAnyVotingOpen = votingSessions.some((s) => s.status === 'open');
   const activeCouponsCount = coupons.filter((c) => c.active).length;
@@ -76,7 +78,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </div>
 
       {/* Large Match Cards (Damer, Herrer) */}
-      <MatchCards matches={matches} onVoteClick={onVoteMatch} />
+      <MatchCards matches={matches} onVoteClick={onVoteMatch} agfLogo={agfLogo || matchday?.agfLogo} />
 
       {/* Prominent Looad Club Supporter Promotional Card (Direct Partnerlink) */}
       {matchday?.looadUrl && (

@@ -114,6 +114,7 @@ export default function App() {
             onOpenAdmin={() => setIsAdminOpen(true)}
             onOpenScanner={() => handleTabChange('scanner')}
             isAdminActive={isAdminOpen}
+            agfLogo={db.agfLogo}
           />
 
           {/* Main Content Area - Mobile Constrained Container */}
@@ -128,6 +129,7 @@ export default function App() {
                 partners={db.partners}
                 onNavigate={handleTabChange}
                 onVoteMatch={handleVoteForMatch}
+                agfLogo={db.agfLogo}
               />
             )}
 
@@ -136,6 +138,8 @@ export default function App() {
                 schedule={activeSchedule}
                 matchdayTitle={activeMatchday?.title}
                 matchdayDate={activeMatchday?.date}
+                matches={activeMatches}
+                agfLogo={db.agfLogo}
               />
             )}
 
@@ -147,17 +151,25 @@ export default function App() {
                 partners={db.partners}
                 matches={activeMatches}
                 initialCategory={voteCategory}
+                agfLogo={db.agfLogo}
               />
             )}
 
             {activeTab === 'kiosk' && (
-              <KioskView products={db.products} />
+              <KioskView
+                products={db.products}
+                coupons={db.coupons}
+                redemptions={db.couponRedemptions}
+                mobilePayNumber={db.mobilePayNumber}
+              />
             )}
 
             {activeTab === 'tilbud' && (
-              <CouponsView
+              <KioskView
+                products={db.products}
                 coupons={db.coupons}
                 redemptions={db.couponRedemptions}
+                mobilePayNumber={db.mobilePayNumber}
               />
             )}
 
@@ -187,6 +199,7 @@ export default function App() {
                 matchday={activeMatchday}
                 canonicalUrl={db.canonicalAppUrl}
                 onBack={() => handleTabChange('hjem')}
+                agfLogo={db.agfLogo}
               />
             )}
 
@@ -241,6 +254,7 @@ export default function App() {
       <UnifiedLoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
+        agfLogo={db.agfLogo}
         onLoginSuccess={(role: StaffRole) => {
           const updatedSession = dataService.getCurrentSession();
           setSession(updatedSession);

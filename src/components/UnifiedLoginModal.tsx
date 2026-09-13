@@ -7,17 +7,20 @@ interface UnifiedLoginModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLoginSuccess: (role: StaffRole) => void;
+  agfLogo?: string;
 }
 
 export const UnifiedLoginModal: React.FC<UnifiedLoginModalProps> = ({
   isOpen,
   onClose,
   onLoginSuccess,
+  agfLogo,
 }) => {
   const [code, setCode] = useState('');
   const [showCode, setShowCode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const currentLogo = agfLogo || '/agf-logo.svg';
 
   if (!isOpen) return null;
 
@@ -70,8 +73,16 @@ export const UnifiedLoginModal: React.FC<UnifiedLoginModalProps> = ({
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center border border-white/15">
-              <ShieldCheck className="w-6 h-6 text-white" />
+            <div className="w-11 h-13 rounded-2xl bg-white p-1.5 flex items-center justify-center border border-white/20 shadow-xs shrink-0">
+              <img
+                src={currentLogo}
+                alt="AGF Håndbold"
+                className="w-full h-full object-contain"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/agf-logo.svg';
+                }}
+              />
             </div>
             <div>
               <span className="text-[10px] font-black uppercase tracking-widest text-red-400 block">
