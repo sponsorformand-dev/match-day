@@ -210,6 +210,24 @@ export const HomeView: React.FC<HomeViewProps> = ({
           AGF Håndbold · Ceres Arena, Aarhus
         </p>
       </div>
+
+      {/* Discrete Public Link to Invitation */}
+      <div className="mt-4 pb-4 text-center">
+        <a
+          href="/invitation"
+          onClick={(e) => {
+            if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && e.button === 0) {
+              e.preventDefault();
+              window.history.pushState(null, '', '/invitation');
+              onNavigate('invitation');
+            }
+          }}
+          className="inline-block text-[11px] sm:text-[12px] text-gray-400 hover:text-gray-600 focus:text-gray-700 underline decoration-gray-300 hover:decoration-gray-500 underline-offset-2 transition-colors focus:outline-none focus:ring-1 focus:ring-gray-400 focus:ring-offset-2 rounded"
+          aria-label="Gå til invitationen"
+        >
+          Invitationen
+        </a>
+      </div>
     </div>
   );
 };

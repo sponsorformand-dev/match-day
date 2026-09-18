@@ -10,6 +10,27 @@ const PORT = 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
+// Direct public asset route for /agf-dobbeltbrag.png (guarantees direct PNG delivery with image/png MIME type)
+app.get('/agf-dobbeltbrag.png', (req, res) => {
+  const filePath = path.join(process.cwd(), 'public', 'agf-dobbeltbrag.png');
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.sendFile(filePath);
+});
+
+// Static public images route - direct access with image/png MIME type and CORS
+const IMAGES_DIR = path.join(process.cwd(), 'public', 'images');
+app.use('/images', express.static(IMAGES_DIR, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.png')) {
+      res.setHeader('Content-Type', 'image/png');
+    }
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+  },
+}));
+
 // Persistence file
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'matchday-db.json');

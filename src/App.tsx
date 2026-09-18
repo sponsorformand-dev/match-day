@@ -20,11 +20,21 @@ import { StaffScannerView } from './components/StaffScannerView.tsx';
 import { AdminDashboard } from './components/AdminDashboard.tsx';
 import { DesktopAdminCompanion } from './components/DesktopAdminCompanion.tsx';
 import { UnifiedLoginModal } from './components/UnifiedLoginModal.tsx';
+import { InvitationView } from './components/InvitationView.tsx';
 import { StaffRole } from './types.ts';
 
 export default function App() {
   const [db, setDb] = useState<MatchdayDatabase>(() => dataService.getDatabase());
-  const [activeTab, setActiveTab] = useState<ActiveTab>('hjem');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      const hash = window.location.hash;
+      if (path === '/invitation' || hash === '#invitation') return 'invitation';
+      if (path === '/del-matchday' || hash === '#del-matchday') return 'del-matchday';
+      if (path === '/scanner' || path === '/admin/scanner' || hash === '#scanner') return 'scanner';
+    }
+    return 'hjem';
+  });
   const [isMoreOpen, setIsMoreOpen] = useState<boolean>(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [session, setSession] = useState(() => dataService.getCurrentSession());
@@ -71,6 +81,10 @@ export default function App() {
         setActiveTab('scanner');
       } else if (hash === '#del-matchday' || path === '/del-matchday') {
         setActiveTab('del-matchday');
+      } else if (hash === '#invitation' || path === '/invitation') {
+        setActiveTab('invitation');
+      } else if (path === '/' && (activeTab === 'invitation' || activeTab === 'del-matchday' || activeTab === 'scanner')) {
+        setActiveTab('hjem');
       }
     };
 
@@ -100,6 +114,10 @@ export default function App() {
     setVoteCategory(category);
     handleTabChange('stem');
   };
+
+  if (activeTab === 'invitation') {
+    return <InvitationView />;
+  }
 
   return (
     <div className="min-h-screen bg-[#F6F6F4] text-[#081326] flex flex-col items-center justify-start p-0 md:p-6 selection:bg-red-600 selection:text-white">

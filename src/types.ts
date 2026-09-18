@@ -1,4 +1,4 @@
-export type ActiveTab = 'hjem' | 'program' | 'stem' | 'kiosk' | 'mere' | 'tilbud' | 'konkurrencer' | 'tilmelding' | 'partnere' | 'del-matchday' | 'scanner';
+export type ActiveTab = 'hjem' | 'program' | 'stem' | 'kiosk' | 'mere' | 'tilbud' | 'konkurrencer' | 'tilmelding' | 'partnere' | 'del-matchday' | 'scanner' | 'invitation';
 
 export interface FeaturedHero {
   enabled: boolean;
